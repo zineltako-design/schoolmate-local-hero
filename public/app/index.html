@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Zean School Manager — Gestion Scolaire</title>
+  <meta name="description" content="Zean School Manager — Logiciel de gestion scolaire SaaS multi-écoles">
+  <meta name="theme-color" content="#1a73e8">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.0/css/all.min.css">
+
+  <!-- Chart.js v4.4.0 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- SheetJS — Export Excel .xlsx natif -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Feuille de style principale -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <style>
+    /* Shake animation for wrong password */
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%       { transform: translateX(-8px); }
+      40%       { transform: translateX(8px); }
+      60%       { transform: translateX(-5px); }
+      80%       { transform: translateX(5px); }
+    }
+    .shake { animation: shake .4s ease; border-color: var(--danger) !important; }
+
+    /* ── Code école — étape de pré-identification ───────────────────── */
+    #login-step-code  { display: flex;  flex-direction: column; gap: 1rem; }
+    #login-step-creds { display: none;  flex-direction: column; gap: 1rem; }
+    #login-step-creds.visible { display: flex; }
+
+    /* École identifiée — bloc de confirmation */
+    #ecole-found-banner {
+      display: none;
+      align-items: center;
+      gap: .75rem;
+      padding: .75rem 1rem;
+      background: linear-gradient(90deg,#e8f5e9,#f1f8e9);
+      border: 1px solid #a5d6a7;
+      border-radius: 10px;
+      font-size: .88rem;
+      color: #2e7d32;
+      font-weight: 600;
+      animation: slideDown .3s ease;
+    }
+    #ecole-found-banner.visible { display: flex; }
+    #ecole-found-logo {
+      width: 36px; height: 36px; border-radius: 8px;
+      object-fit: cover; display: none;
+    }
+    #ecole-found-logo.visible { display: block; }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Bouton retour */
+    .login-back-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--gray-600); font-size: .84rem; display: flex;
+      align-items: center; gap: .4rem; padding: 0; font-family: inherit;
+      transition: color .2s;
+    }
+    .login-back-btn:hover { color: var(--primary); }
+
+    /* Marque Zean dans sidebar footer */
+    .sidebar-zean-brand {
+      margin-top: .5rem;
+      padding: .4rem .6rem;
+      background: rgba(255,255,255,.08);
+      border-radius: 8px;
+      font-size: .7rem;
+      color: rgba(255,255,255,.45);
+      text-align: center;
+      letter-spacing: .04em;
+    }
+    .sidebar-zean-brand strong { color: rgba(255,255,255,.7); }
+
+    /* Badge "Zean" dans topbar */
+    .topbar-zean-badge {
+      font-size: .72rem;
+      font-weight: 700;
+      color: rgba(255,255,255,.55);
+      letter-spacing: .05em;
+      padding: .2rem .5rem;
+      background: rgba(255,255,255,.1);
+      border-radius: 5px;
+      white-space: nowrap;
+    }
+    @media (max-width: 640px) { .topbar-zean-badge { display: none; } }
+
+    .sidebar-title-wrap { overflow: hidden; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE DE CONNEXION — Multi-écoles avec Code École
+════════════════════════════════════════════════════════════════════ -->
+<div id="login-page" style="display:flex">
+  <div class="login-card">
+
+    <!-- LOGO & MARQUE GLOBALE -->
+    <div class="login-logo">
+      <div class="logo-icon">
+        <i class="fa-solid fa-graduation-cap"></i>
+        <span class="login-cross-badge">✦</span>
+      </div>
+      <h1 style="font-size:1.6rem;font-weight:800;margin:0;line-height:1.1">Zean</h1>
+      <p style="font-size:.78rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;opacity:.7;margin:.1rem 0 0">School Manager</p>
+      <p style="font-size:.75rem;color:var(--gray-500);margin-top:.3rem;font-style:italic">Lumière · Savoir · Excellence</p>
+    </div>
+
+    <!-- Bannière école identifiée (dynamique) -->
+    <div id="ecole-found-banner">
+      <img id="ecole-found-logo" src="" alt="logo école">
+      <div>
+        <div id="ecole-found-name" style="font-size:.95rem"></div>
+        <div id="ecole-found-ville" style="font-size:.78rem;font-weight:400;opacity:.8"></div>
+      </div>
+      <i class="fa-solid fa-circle-check" style="margin-left:auto;font-size:1.1rem"></i>
+    </div>
+
+    <form id="login-form" autocomplete="on">
+
+      <!-- ── ÉTAPE 1 : Code École ──────────────────────────── -->
+      <div id="login-step-code">
+        <div style="font-size:.82rem;color:var(--gray-600);text-align:center;padding:.25rem 0">
+          <i class="fa-solid fa-building-columns"></i>
+          &nbsp;Identifiez votre établissement
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Code de l'école <span style="color:var(--danger)">*</span></label>
+          <div class="input-group">
+            <i class="left fa-solid fa-building-columns"></i>
+            <input type="text" class="form-control" id="login-school-code"
+              placeholder="Ex: COYAH-01, CONAKRY-ECO1…"
+              autocomplete="off"
+              style="text-transform:uppercase;letter-spacing:.05em"
+              oninput="this.value=this.value.toUpperCase()">
+          </div>
+          <div class="form-text" style="margin-top:.35rem">
+            Le code vous a été fourni par l'administration de Zean School Manager.
+          </div>
+        </div>
+        <div id="school-code-error" style="color:var(--danger);font-size:.84rem;min-height:1rem"></div>
+        <button type="button" class="btn btn-primary btn-lg" style="width:100%;margin-top:.25rem"
+          id="school-code-btn" onclick="App.verifySchoolCode()">
+          <i class="fa-solid fa-arrow-right"></i> Continuer
+        </button>
+        <div style="text-align:center;margin-top:.75rem">
+          <a href="superadmin.html" style="font-size:.78rem;color:var(--gray-500);text-decoration:none;display:inline-flex;align-items:center;gap:.3rem;transition:color .2s" onmouseover="this.style.color='#6c3fc5'" onmouseout="this.style.color='var(--gray-500)'">
+            <i class="fa-solid fa-crown" style="font-size:.7rem"></i> Espace éditeur (Super-Admin)
+          </a>
+        </div>
+      </div>
+
+      <!-- ── ÉTAPE 2 : Identifiants ────────────────────────── -->
+      <div id="login-step-creds">
+        <button type="button" class="login-back-btn" onclick="App.loginGoBack()">
+          <i class="fa-solid fa-chevron-left"></i> Changer d'école
+        </button>
+
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Adresse email</label>
+          <div class="input-group">
+            <i class="left fa-solid fa-envelope"></i>
+            <input type="email" class="form-control" id="login-email"
+              placeholder="admin@ecole.com" autocomplete="email">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Mot de passe</label>
+          <div class="input-group">
+            <i class="left fa-solid fa-lock"></i>
+            <input type="password" class="form-control" id="login-pwd"
+              placeholder="••••••••" autocomplete="current-password">
+            <button type="button" class="toggle-pwd" id="toggle-pwd">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div id="login-error" style="color:var(--danger);font-size:.84rem;min-height:1.2rem"></div>
+
+        <button type="submit" class="btn btn-primary btn-lg" style="width:100%">
+          <i class="fa-solid fa-right-to-bracket"></i> Se connecter
+        </button>
+      </div>
+
+    </form><!-- /login-form -->
+
+    <!-- Signature Zean -->
+    <div style="margin-top:1.25rem;text-align:center;font-size:.72rem;color:var(--gray-400);border-top:1px solid var(--gray-200);padding-top:.75rem">
+      Propulsé par <strong style="color:var(--gray-500)">Zean School Manager</strong>
+      &nbsp;·&nbsp; <a href="mailto:editrice@zean.app" style="color:var(--gray-400);text-decoration:none">editrice@zean.app</a>
+    </div>
+
+  </div><!-- /login-card -->
+</div><!-- /login-page -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     APPLICATION PRINCIPALE
+════════════════════════════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <i class="fa-solid fa-graduation-cap"></i>
+        <span class="sidebar-cross-badge">✦</span>
+      </div>
+      <div class="sidebar-title-wrap">
+        <!-- Nom de l'école chargé dynamiquement -->
+        <div class="sidebar-title" id="sidebar-school-name">Votre École</div>
+        <div class="sidebar-subtitle" id="sidebar-school-code-display" style="font-size:.65rem;opacity:.55;letter-spacing:.06em"></div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav" id="sidebar-nav">
+      <!-- Généré dynamiquement par App.buildSidebar() -->
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <div class="user-details">
+          <div class="user-name" id="user-name">Utilisateur</div>
+          <div class="user-role" id="user-role-label">—</div>
+        </div>
+      </div>
+      <button onclick="App.logout()"
+        style="background:none;border:none;cursor:pointer;color:rgba(255,255,255,.6);font-size:.8rem;margin-top:.6rem;display:flex;align-items:center;gap:.4rem;padding:.2rem 0;transition:color .2s"
+        onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255,255,255,.6)'">
+        <i class="fa-solid fa-right-from-bracket"></i> Déconnexion
+      </button>
+      <!-- Signature marque permanente dans sidebar -->
+      <div class="sidebar-zean-brand">
+        Propulsé par <strong>Zean</strong> School Manager
+      </div>
+    </div>
+  </aside>
+
+  <!-- OVERLAY MOBILE -->
+  <div class="overlay-bg" id="overlay-bg" onclick="App.toggleSidebar()"></div>
+
+  <!-- CONTENU PRINCIPAL -->
+  <div id="main-wrap">
+
+    <!-- TOPBAR -->
+    <header id="topbar">
+      <button class="topbar-toggle" onclick="App.toggleSidebar()" title="Menu">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+
+      <span id="page-title">Tableau de bord</span>
+
+      <div class="topbar-actions">
+        <!-- Signature Zean discrète dans topbar -->
+        <span class="topbar-zean-badge" title="Zean School Manager">
+          ✦ Zean
+        </span>
+
+        <span class="date-display" id="topbar-date"></span>
+
+        <!-- R11 — Badge connexion PWA -->
+        <span id="connection-badge" class="connection-badge online" title="En ligne">
+          <span class="conn-dot"></span>
+          <span class="conn-label">En ligne</span>
+        </span>
+
+        <!-- R11 — Bouton Aide contextuelle -->
+        <button class="topbar-btn topbar-help-btn" id="topbar-help-btn" onclick="HelpCenter.toggle()" title="Centre d'aide">
+          <i class="fa-solid fa-circle-question"></i>
+        </button>
+
+        <button class="topbar-btn" id="topbar-config-btn" onclick="App.navigateTo('config')" title="Configuration">
+          <i class="fa-solid fa-gear"></i>
+        </button>
+
+        <button class="topbar-btn" onclick="App.logout()" title="Déconnexion">
+          <i class="fa-solid fa-right-from-bracket"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- R12 — Bandeau licence / essai (sous la topbar) -->
+    <div id="licence-banner" style="display:none"></div>
+
+    <!-- R12 — Bandeau annonces plateforme -->
+    <div id="plateforme-annonces-container"></div>
+
+    <!-- ZONE DE CONTENU -->
+    <main id="main-content">
+      <!-- Contenu généré dynamiquement -->
+    </main>
+
+  </div><!-- /main-wrap -->
+</div><!-- /app -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     R12 — ÉCRAN DE BLOCAGE LICENCE (Lock Screen)
+════════════════════════════════════════════════════════════════════ -->
+<div id="licence-lock-screen" style="display:none">
+  <div class="lock-screen-card">
+
+    <!-- Logo / icône -->
+    <div class="lock-screen-logo">
+      <div class="lock-screen-icon-wrap">
+        <i class="fa-solid fa-lock"></i>
+      </div>
+      <div class="lock-screen-star">✦</div>
+    </div>
+
+    <!-- Titre + message -->
+    <h2 class="lock-screen-title">Accès suspendu</h2>
+    <p class="lock-screen-subtitle">Zean School Manager</p>
+    <p class="lock-screen-msg">
+      Votre période d'essai est terminée ou votre licence a expiré.<br>
+      Réglez votre abonnement pour retrouver un accès complet.
+    </p>
+
+    <div class="lock-screen-divider"></div>
+
+    <!-- Option 1 : Activer une clé -->
+    <div class="lock-screen-section">
+      <h3><i class="fa-solid fa-key"></i> Vous avez une clé de licence ?</h3>
+      <p>Entrez la clé reçue après votre paiement (Mobile Money, espèces) pour débloquer immédiatement l'accès.</p>
+      <div class="lock-key-input-wrap">
+        <input type="text" id="lock-key-input"
+          class="lock-key-input"
+          placeholder="ZEAN-XXXX-XXXX-XXXX"
+          maxlength="19"
+          autocomplete="off"
+          oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9-]/g,'')">
+        <button class="lock-activate-btn" id="lock-activate-btn"
+          onclick="LicenceManager._activateFromLockScreen()">
+          <i class="fa-solid fa-unlock-keyhole"></i>
+          Activer
+        </button>
+      </div>
+      <div id="lock-key-error" class="lock-key-error"></div>
+    </div>
+
+    <div class="lock-screen-divider"></div>
+
+    <!-- Option 2 : Contacter l'administration -->
+    <div class="lock-screen-section lock-screen-contact">
+      <h3><i class="fa-solid fa-headset"></i> Vous n'avez pas encore de clé ?</h3>
+      <p>Contactez l'administration de <strong>Zean School Manager</strong> pour régler votre abonnement.</p>
+      <div class="lock-contact-info">
+        <a href="mailto:editrice@zean.app" class="lock-contact-item">
+          <i class="fa-solid fa-envelope"></i>
+          <span>editrice@zean.app</span>
+        </a>
+        <div class="lock-contact-item">
+          <i class="fa-solid fa-mobile-screen"></i>
+          <span>Paiement par Mobile Money ou espèces accepté</span>
+        </div>
+      </div>
+    </div>
+
+    <button class="lock-logout-btn" onclick="App.logout()">
+      <i class="fa-solid fa-right-from-bracket"></i> Changer de compte
+    </button>
+
+  </div><!-- /lock-screen-card -->
+</div><!-- /licence-lock-screen -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TOAST NOTIFICATIONS
+════════════════════════════════════════════════════════════════════ -->
+<div id="toast-container"></div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     R11 — MODAL IMPRESSION PDF (PrintHelper — sans popup bloqué)
+════════════════════════════════════════════════════════════════════ -->
+<div id="print-modal-overlay">
+  <div id="print-modal">
+    <div class="print-modal-header">
+      <h4 id="print-modal-title"><i class="fa-solid fa-file-pdf"></i> Aperçu avant impression</h4>
+      <div class="print-modal-actions">
+        <button class="print-modal-btn primary" onclick="PrintHelper.printFrame()" title="Imprimer">
+          <i class="fa-solid fa-print"></i> Imprimer
+        </button>
+        <button class="print-modal-btn primary" onclick="PrintHelper.download()" title="Télécharger PDF">
+          <i class="fa-solid fa-download"></i> Télécharger
+        </button>
+        <button class="print-modal-btn close-btn" onclick="PrintHelper.close()" title="Fermer">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+    <div id="print-modal-loading">
+      <div class="loading-spinner" style="width:28px;height:28px"></div>
+      <span>Préparation du document…</span>
+    </div>
+    <iframe id="print-modal-iframe" style="display:none" title="Aperçu PDF"></iframe>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     R11 — DRAWER CENTRE D'AIDE
+════════════════════════════════════════════════════════════════════ -->
+<div id="help-drawer-overlay" onclick="HelpCenter.close()"></div>
+<div id="help-drawer">
+  <div class="help-drawer-header">
+    <h3><i class="fa-solid fa-circle-question"></i> Centre d'Aide</h3>
+    <button class="help-close-btn" onclick="HelpCenter.close()"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <div class="help-role-banner" id="help-role-banner">
+    <i class="fa-solid fa-user-shield"></i> <span id="help-role-label">Chargement…</span>
+  </div>
+  <div id="help-drawer-body"><!-- Contenu généré par HelpCenter.render() --></div>
+  <!-- Signature dans drawer aide -->
+  <div style="margin-top:auto;padding:1rem;text-align:center;font-size:.72rem;color:var(--gray-400);border-top:1px solid var(--gray-200)">
+    Zean School Manager · <a href="mailto:editrice@zean.app" style="color:var(--gray-400)">editrice@zean.app</a>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCRIPTS
+════════════════════════════════════════════════════════════════════ -->
+<script src="js/db.js"></script>
+<script src="js/offline.js"></script>
+<script src="js/help.js"></script>
+<script src="js/app.js"></script>
+<script src="js/pages.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    App.init();
+    // Service Worker PWA (R11)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  });
+</script>
+
+</body>
+</html>
