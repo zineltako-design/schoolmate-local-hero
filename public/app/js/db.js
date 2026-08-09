@@ -641,9 +641,12 @@ const DB = {
    */
   async insert(table, data) {
     const enriched = { ...data };
-    // Multi-tenancy : forcer ecole_code
-    if (!this.GLOBAL_TABLES.includes(table) && this._currentEcoleCode) {
-      enriched.ecole_code = this._currentEcoleCode;
+    // Multi-tenancy : le code fourni explicitement gagne (création d'école /
+    // de compte depuis le SuperAdmin), sinon on force l'école courante.
+    if (!this.GLOBAL_TABLES.includes(table)) {
+      const explicit = (data.ecole_code || data.school_code || '').trim().toUpperCase();
+      if (explicit) enriched.ecole_code = explicit;
+      else if (this._currentEcoleCode) enriched.ecole_code = this._currentEcoleCode;
     }
     if (!enriched.id) {
       enriched.id = 'loc_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
