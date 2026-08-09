@@ -672,9 +672,10 @@ const DB = {
   async update(table, id, data) {
     const existing = await this._idbGet(table, id) || {};
     const merged = { ...existing, ...data, id, updated_at: Date.now() };
-    // Préserver isolation école
-    if (!this.GLOBAL_TABLES.includes(table) && this._currentEcoleCode) {
-      merged.ecole_code = this._currentEcoleCode;
+    // Préserver isolation école (sans écraser un code déjà porté par la ligne)
+    if (!this.GLOBAL_TABLES.includes(table)) {
+      const keep = (data.ecole_code || existing.ecole_code || this._currentEcoleCode || '').trim().toUpperCase();
+      if (keep) merged.ecole_code = keep;
     }
 
     await this._idbPut(table, merged, true);
