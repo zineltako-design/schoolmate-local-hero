@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Zean School Manager — Espace Éditrice</title>
+  <meta name="description" content="Tableau de bord Super-Admin — Gestion globale de la plateforme Zean School Manager">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#6c3fc5">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.0/css/all.min.css">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Styles Super-Admin -->
+  <link rel="stylesheet" href="css/superadmin.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE DE CONNEXION SUPER-ADMIN
+════════════════════════════════════════════════════════════════════ -->
+<div id="sa-login-page">
+  <div class="sa-login-card">
+    <div class="sa-login-logo">
+      <div class="sa-logo-icon">
+        <i class="fa-solid fa-crown"></i>
+        <span class="gold-star">✦</span>
+      </div>
+      <h1>Zean School Manager</h1>
+      <p>Espace Éditrice · Super-Admin</p>
+      <div><span class="sa-badge-editor"><i class="fa-solid fa-shield-halved"></i> Accès Restreint</span></div>
+    </div>
+
+    <form id="sa-login-form">
+      <div class="sa-form-group">
+        <label class="sa-form-label">Adresse email</label>
+        <div class="sa-input-wrap">
+          <i class="left fa-solid fa-envelope"></i>
+          <input type="email" class="sa-input" id="sa-email" placeholder="editrice@zean.app" autocomplete="email" required>
+        </div>
+      </div>
+      <div class="sa-form-group">
+        <label class="sa-form-label">Mot de passe</label>
+        <div class="sa-input-wrap">
+          <i class="left fa-solid fa-lock"></i>
+          <input type="password" class="sa-input" id="sa-pwd" placeholder="••••••••••••" autocomplete="current-password" required>
+          <button type="button" id="sa-toggle-pwd" style="position:absolute;right:.85rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#8892b0;font-size:.85rem">
+            <i class="fa-solid fa-eye"></i>
+          </button>
+        </div>
+      </div>
+      <div id="sa-login-error" class="sa-error"></div>
+      <button type="submit" class="sa-btn-primary" id="sa-login-btn">
+        <i class="fa-solid fa-right-to-bracket"></i> Accéder au panneau de contrôle
+      </button>
+    </form>
+
+    <div style="margin-top:1.5rem;text-align:center;font-size:.75rem;color:#8892b0">
+      <i class="fa-solid fa-shield-check"></i> Connexion chiffrée · Accès réservé à l'éditrice
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     APPLICATION PRINCIPALE SUPER-ADMIN
+════════════════════════════════════════════════════════════════════ -->
+<div id="sa-app">
+
+  <!-- SIDEBAR -->
+  <aside id="sa-sidebar">
+    <div class="sa-sidebar-header">
+      <div class="sa-sidebar-logo"><i class="fa-solid fa-crown"></i></div>
+      <div>
+        <div class="sa-sidebar-title">Zean · Éditrice</div>
+        <div class="sa-sidebar-subtitle">SUPER-ADMIN PANEL</div>
+      </div>
+    </div>
+
+    <nav class="sa-nav" id="sa-nav">
+      <!-- Généré par SA.buildNav() -->
+    </nav>
+
+    <div class="sa-sidebar-footer">
+      <div class="sa-user-info">
+        <div class="sa-user-avatar" id="sa-user-avatar">E</div>
+        <div>
+          <div class="sa-user-name" id="sa-user-name">Éditrice</div>
+          <div class="sa-user-role">Super-Admin · Propriétaire</div>
+        </div>
+      </div>
+      <button class="sa-logout-btn" onclick="SA.logout()">
+        <i class="fa-solid fa-right-from-bracket"></i> Déconnexion
+      </button>
+    </div>
+  </aside>
+
+  <!-- OVERLAY MOBILE -->
+  <div id="sa-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999" onclick="SA.closeSidebar()"></div>
+
+  <!-- MAIN -->
+  <div id="sa-main-wrap">
+
+    <!-- TOPBAR -->
+    <header id="sa-topbar">
+      <button style="background:none;border:none;cursor:pointer;color:#8892b0;font-size:1.1rem;padding:.2rem;display:none" id="sa-menu-btn" onclick="SA.openSidebar()">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+      <span id="sa-page-title">Tableau de bord</span>
+      <div class="sa-topbar-actions">
+        <span class="sa-topbar-date" id="sa-date"></span>
+        <span class="sa-topbar-chip">
+          <i class="fa-solid fa-crown"></i> Super-Admin
+        </span>
+        <button class="sa-topbar-btn" onclick="SA.goTo('dashboard')" title="Actualiser">
+          <i class="fa-solid fa-arrows-rotate"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- CONTENU -->
+    <main id="sa-main-content">
+      <!-- Généré dynamiquement -->
+    </main>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TOASTS
+════════════════════════════════════════════════════════════════════ -->
+<div id="sa-toast-container"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCRIPTS
+════════════════════════════════════════════════════════════════════ -->
+<script src="js/db.js"></script>
+<script src="js/db-extras.js"></script>
+<script src="js/superadmin.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => SA.init());
+</script>
+</body>
+</html>

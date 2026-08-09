@@ -1,0 +1,1047 @@
+[
+  {
+    "name": "ecole_config",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "nom",
+        "type": "text"
+      },
+      {
+        "name": "adresse",
+        "type": "text"
+      },
+      {
+        "name": "telephone",
+        "type": "text"
+      },
+      {
+        "name": "email",
+        "type": "text"
+      },
+      {
+        "name": "devise",
+        "type": "text"
+      },
+      {
+        "name": "matricule_prefix",
+        "type": "text"
+      },
+      {
+        "name": "configured",
+        "type": "bool"
+      },
+      {
+        "name": "type_echeancier",
+        "type": "text",
+        "description": "mensuel ou trimestriel",
+        "options": [
+          "mensuel",
+          "trimestriel"
+        ]
+      },
+      {
+        "name": "montants_echeances",
+        "type": "array",
+        "description": "Tableau des montants par échéance [{label, montant, mois_index}]"
+      }
+    ]
+  },
+  {
+    "name": "classes",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "nom",
+        "type": "text"
+      },
+      {
+        "name": "niveau",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "name": "eleves",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "matricule",
+        "type": "text"
+      },
+      {
+        "name": "prenom",
+        "type": "text"
+      },
+      {
+        "name": "nom",
+        "type": "text"
+      },
+      {
+        "name": "date_naissance",
+        "type": "text"
+      },
+      {
+        "name": "sexe",
+        "type": "text"
+      },
+      {
+        "name": "classe_id",
+        "type": "text"
+      },
+      {
+        "name": "nom_parent",
+        "type": "text"
+      },
+      {
+        "name": "contact_parent",
+        "type": "text"
+      },
+      {
+        "name": "type_scolarite",
+        "type": "text",
+        "description": "standard ou exonere",
+        "options": [
+          "standard",
+          "exonere"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "matieres",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "nom",
+        "type": "text"
+      },
+      {
+        "name": "coefficient",
+        "type": "number"
+      },
+      {
+        "name": "classe_id",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "name": "utilisateurs",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "email",
+        "type": "text"
+      },
+      {
+        "name": "mot_de_passe",
+        "type": "text"
+      },
+      {
+        "name": "role",
+        "type": "text",
+        "options": [
+          "admin",
+          "directeur",
+          "prof",
+          "comptable"
+        ]
+      },
+      {
+        "name": "prenom",
+        "type": "text"
+      },
+      {
+        "name": "nom",
+        "type": "text"
+      },
+      {
+        "name": "actif",
+        "type": "bool"
+      },
+      {
+        "name": "classe_id",
+        "type": "text",
+        "description": "Pour prof primaire : classe titulaire"
+      },
+      {
+        "name": "matieres_ids",
+        "type": "array",
+        "description": "Pour prof collège : liste des matiere_id autorisées"
+      }
+    ]
+  },
+  {
+    "name": "notes",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "eleve_id",
+        "type": "text"
+      },
+      {
+        "name": "matiere_id",
+        "type": "text"
+      },
+      {
+        "name": "classe_id",
+        "type": "text"
+      },
+      {
+        "name": "sequence",
+        "type": "number"
+      },
+      {
+        "name": "valeur",
+        "type": "number"
+      }
+    ]
+  },
+  {
+    "name": "paiements",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "eleve_id",
+        "type": "text"
+      },
+      {
+        "name": "montant",
+        "type": "number"
+      },
+      {
+        "name": "mode_paiement",
+        "type": "text"
+      },
+      {
+        "name": "observation",
+        "type": "text"
+      },
+      {
+        "name": "date_paiement",
+        "type": "datetime"
+      },
+      {
+        "name": "caissier_id",
+        "type": "text"
+      },
+      {
+        "name": "caissier_nom",
+        "type": "text"
+      },
+      {
+        "name": "annule",
+        "type": "bool"
+      },
+      {
+        "name": "tranche_id",
+        "type": "text",
+        "description": "Identifiant de la tranche payée (inscription, mois1..9 ou trim1..3)"
+      },
+      {
+        "name": "tranche_label",
+        "type": "text",
+        "description": "Libellé de la tranche (ex: Inscription, Octobre, Trimestre 1)"
+      }
+    ]
+  },
+  {
+    "name": "depenses",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "motif",
+        "type": "text"
+      },
+      {
+        "name": "montant",
+        "type": "number"
+      },
+      {
+        "name": "categorie",
+        "type": "text"
+      },
+      {
+        "name": "date_depense",
+        "type": "text"
+      },
+      {
+        "name": "par",
+        "type": "text"
+      },
+      {
+        "name": "description",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "name": "config_scolarite",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "niveau",
+        "type": "text"
+      },
+      {
+        "name": "montant_annuel",
+        "type": "number"
+      }
+    ]
+  },
+  {
+    "name": "notes_audit_log",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "description": "UUID unique"
+      },
+      {
+        "name": "note_id",
+        "type": "text",
+        "description": "ID de la note modifiée"
+      },
+      {
+        "name": "eleve_id",
+        "type": "text",
+        "description": "ID de l'élève"
+      },
+      {
+        "name": "matiere_id",
+        "type": "text",
+        "description": "ID de la matière"
+      },
+      {
+        "name": "sequence",
+        "type": "number",
+        "description": "Numéro de séquence"
+      },
+      {
+        "name": "ancienne_valeur",
+        "type": "number",
+        "description": "Valeur avant modification"
+      },
+      {
+        "name": "nouvelle_valeur",
+        "type": "number",
+        "description": "Valeur après modification"
+      },
+      {
+        "name": "modifie_par_id",
+        "type": "text",
+        "description": "ID de l'utilisateur qui a modifié"
+      },
+      {
+        "name": "modifie_par_nom",
+        "type": "text",
+        "description": "Nom de l'utilisateur"
+      },
+      {
+        "name": "motif",
+        "type": "text",
+        "description": "Motif de la modification"
+      },
+      {
+        "name": "statut",
+        "type": "text",
+        "description": "pending_validation | valide | rejete",
+        "options": [
+          "pending_validation",
+          "valide",
+          "rejete"
+        ]
+      },
+      {
+        "name": "valide_par_id",
+        "type": "text",
+        "description": "ID du directeur validant"
+      },
+      {
+        "name": "date_modification",
+        "type": "datetime",
+        "description": "Date/heure de la modification"
+      }
+    ]
+  },
+  {
+    "name": "presences",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "description": "UUID unique"
+      },
+      {
+        "name": "eleve_id",
+        "type": "text",
+        "description": "ID de l'élève"
+      },
+      {
+        "name": "classe_id",
+        "type": "text",
+        "description": "ID de la classe"
+      },
+      {
+        "name": "date_appel",
+        "type": "text",
+        "description": "Date de l'appel (YYYY-MM-DD)"
+      },
+      {
+        "name": "present",
+        "type": "bool",
+        "description": "Présent ou absent"
+      },
+      {
+        "name": "justifie",
+        "type": "bool",
+        "description": "Absence justifiée ou non"
+      },
+      {
+        "name": "motif_absence",
+        "type": "text",
+        "description": "Motif de l'absence si justifiée"
+      },
+      {
+        "name": "enregistre_par_id",
+        "type": "text",
+        "description": "ID du prof ayant fait l'appel"
+      },
+      {
+        "name": "enregistre_par_nom",
+        "type": "text",
+        "description": "Nom du prof"
+      }
+    ]
+  },
+  {
+    "name": "archives_eleves",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "annee_scolaire",
+        "type": "text"
+      },
+      {
+        "name": "eleve_id",
+        "type": "text"
+      },
+      {
+        "name": "matricule",
+        "type": "text"
+      },
+      {
+        "name": "prenom",
+        "type": "text"
+      },
+      {
+        "name": "nom",
+        "type": "text"
+      },
+      {
+        "name": "sexe",
+        "type": "text"
+      },
+      {
+        "name": "classe_id",
+        "type": "text"
+      },
+      {
+        "name": "classe_nom",
+        "type": "text"
+      },
+      {
+        "name": "niveau",
+        "type": "text"
+      },
+      {
+        "name": "statut_paiement",
+        "type": "text"
+      },
+      {
+        "name": "decision",
+        "type": "text",
+        "options": [
+          "promu",
+          "redouble",
+          "diplome",
+          "exclu"
+        ]
+      },
+      {
+        "name": "classe_suivante_id",
+        "type": "text"
+      },
+      {
+        "name": "archive_at",
+        "type": "datetime"
+      }
+    ]
+  },
+  {
+    "name": "archives_finances",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "annee_scolaire",
+        "type": "text"
+      },
+      {
+        "name": "eleve_id",
+        "type": "text"
+      },
+      {
+        "name": "eleve_nom",
+        "type": "text"
+      },
+      {
+        "name": "classe_nom",
+        "type": "text"
+      },
+      {
+        "name": "montant_du",
+        "type": "number"
+      },
+      {
+        "name": "montant_paye",
+        "type": "number"
+      },
+      {
+        "name": "reste",
+        "type": "number"
+      },
+      {
+        "name": "statut",
+        "type": "text"
+      },
+      {
+        "name": "nb_paiements",
+        "type": "number"
+      },
+      {
+        "name": "archive_at",
+        "type": "datetime"
+      }
+    ]
+  },
+  {
+    "name": "ecoles",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "nom",
+        "type": "text"
+      },
+      {
+        "name": "ville",
+        "type": "text"
+      },
+      {
+        "name": "pays",
+        "type": "text"
+      },
+      {
+        "name": "adresse",
+        "type": "text"
+      },
+      {
+        "name": "telephone",
+        "type": "text"
+      },
+      {
+        "name": "email_contact",
+        "type": "text"
+      },
+      {
+        "name": "directeur_nom",
+        "type": "text"
+      },
+      {
+        "name": "directeur_email",
+        "type": "text"
+      },
+      {
+        "name": "directeur_password_hash",
+        "type": "text"
+      },
+      {
+        "name": "logo_url",
+        "type": "text"
+      },
+      {
+        "name": "devise",
+        "type": "text"
+      },
+      {
+        "name": "statut",
+        "type": "text",
+        "options": [
+          "actif",
+          "suspendu",
+          "bloque",
+          "essai",
+          "expire"
+        ]
+      },
+      {
+        "name": "date_creation",
+        "type": "datetime"
+      },
+      {
+        "name": "essai_fin",
+        "type": "datetime"
+      },
+      {
+        "name": "licence_fin",
+        "type": "datetime"
+      },
+      {
+        "name": "nb_eleves",
+        "type": "number"
+      },
+      {
+        "name": "nb_utilisateurs",
+        "type": "number"
+      },
+      {
+        "name": "plan",
+        "type": "text",
+        "options": [
+          "essai",
+          "mensuel",
+          "annuel",
+          "illimite"
+        ]
+      },
+      {
+        "name": "notes_internes",
+        "type": "rich_text"
+      }
+    ]
+  },
+  {
+    "name": "licences_keys",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "cle",
+        "type": "text"
+      },
+      {
+        "name": "ecole_id",
+        "type": "text"
+      },
+      {
+        "name": "ecole_nom",
+        "type": "text"
+      },
+      {
+        "name": "duree_jours",
+        "type": "number"
+      },
+      {
+        "name": "plan",
+        "type": "text",
+        "options": [
+          "mensuel",
+          "trimestriel",
+          "semestriel",
+          "annuel",
+          "illimite"
+        ]
+      },
+      {
+        "name": "montant",
+        "type": "number"
+      },
+      {
+        "name": "devise",
+        "type": "text"
+      },
+      {
+        "name": "statut",
+        "type": "text",
+        "options": [
+          "non_utilisee",
+          "active",
+          "expiree",
+          "revoquee"
+        ]
+      },
+      {
+        "name": "date_generation",
+        "type": "datetime"
+      },
+      {
+        "name": "date_activation",
+        "type": "datetime"
+      },
+      {
+        "name": "date_expiration",
+        "type": "datetime"
+      },
+      {
+        "name": "activee_par",
+        "type": "text"
+      },
+      {
+        "name": "notes",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "name": "abonnements",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "ecole_id",
+        "type": "text"
+      },
+      {
+        "name": "ecole_nom",
+        "type": "text"
+      },
+      {
+        "name": "licence_key_id",
+        "type": "text"
+      },
+      {
+        "name": "plan",
+        "type": "text"
+      },
+      {
+        "name": "montant",
+        "type": "number"
+      },
+      {
+        "name": "devise",
+        "type": "text"
+      },
+      {
+        "name": "mode_paiement",
+        "type": "text",
+        "options": [
+          "mobile_money",
+          "especes",
+          "virement",
+          "cheque",
+          "offert"
+        ]
+      },
+      {
+        "name": "statut",
+        "type": "text",
+        "options": [
+          "paye",
+          "en_attente",
+          "impaye",
+          "rembourse"
+        ]
+      },
+      {
+        "name": "date_paiement",
+        "type": "datetime"
+      },
+      {
+        "name": "periode_debut",
+        "type": "datetime"
+      },
+      {
+        "name": "periode_fin",
+        "type": "datetime"
+      },
+      {
+        "name": "reference",
+        "type": "text"
+      },
+      {
+        "name": "notes",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "name": "annonces_plateforme",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "titre",
+        "type": "text"
+      },
+      {
+        "name": "contenu",
+        "type": "rich_text"
+      },
+      {
+        "name": "type",
+        "type": "text",
+        "options": [
+          "info",
+          "maintenance",
+          "mise_a_jour",
+          "alerte",
+          "promotion"
+        ]
+      },
+      {
+        "name": "priorite",
+        "type": "text",
+        "options": [
+          "normale",
+          "haute",
+          "urgente"
+        ]
+      },
+      {
+        "name": "cible",
+        "type": "text",
+        "options": [
+          "tous",
+          "directeurs",
+          "admins",
+          "comptables",
+          "profs"
+        ]
+      },
+      {
+        "name": "ecoles_ids",
+        "type": "array"
+      },
+      {
+        "name": "active",
+        "type": "bool"
+      },
+      {
+        "name": "date_debut",
+        "type": "datetime"
+      },
+      {
+        "name": "date_fin",
+        "type": "datetime"
+      },
+      {
+        "name": "auteur",
+        "type": "text"
+      },
+      {
+        "name": "nb_vues",
+        "type": "number"
+      },
+      {
+        "name": "lien_action",
+        "type": "text"
+      },
+      {
+        "name": "label_action",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "name": "comptabilite_caisse",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "description": "Identifiant unique de l'écriture"
+      },
+      {
+        "name": "type",
+        "type": "text",
+        "description": "Type d'écriture: encaissement | depense | transfert_sortie",
+        "options": [
+          "encaissement",
+          "depense",
+          "transfert_sortie"
+        ]
+      },
+      {
+        "name": "libelle",
+        "type": "text",
+        "description": "Libellé de l'écriture (détails)"
+      },
+      {
+        "name": "montant",
+        "type": "number",
+        "description": "Montant de l'écriture"
+      },
+      {
+        "name": "date_ecriture",
+        "type": "text",
+        "description": "Date de l'écriture (ISO)"
+      },
+      {
+        "name": "reference",
+        "type": "text",
+        "description": "Référence ou numéro de pièce"
+      },
+      {
+        "name": "categorie",
+        "type": "text",
+        "description": "Catégorie: scolarite | salaire | materiel | autres"
+      },
+      {
+        "name": "ecole_code",
+        "type": "text",
+        "description": "Code de l'école (multi-tenancy)"
+      },
+      {
+        "name": "created_by",
+        "type": "text",
+        "description": "Utilisateur créateur"
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "description": "Notes libres"
+      }
+    ]
+  },
+  {
+    "name": "comptabilite_banque",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "description": "Identifiant unique de l'écriture bancaire"
+      },
+      {
+        "name": "type",
+        "type": "text",
+        "description": "Type d'écriture: entree | sortie | transfert_entree",
+        "options": [
+          "entree",
+          "sortie",
+          "transfert_entree"
+        ]
+      },
+      {
+        "name": "libelle",
+        "type": "text",
+        "description": "Libellé de l'écriture"
+      },
+      {
+        "name": "montant",
+        "type": "number",
+        "description": "Montant de l'écriture"
+      },
+      {
+        "name": "date_ecriture",
+        "type": "text",
+        "description": "Date de l'écriture (ISO)"
+      },
+      {
+        "name": "reference",
+        "type": "text",
+        "description": "Référence bancaire ou numéro de chèque"
+      },
+      {
+        "name": "categorie",
+        "type": "text",
+        "description": "Catégorie: scolarite | salaire | charges | subvention | autres"
+      },
+      {
+        "name": "ecole_code",
+        "type": "text",
+        "description": "Code de l'école (multi-tenancy)"
+      },
+      {
+        "name": "created_by",
+        "type": "text",
+        "description": "Utilisateur créateur"
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "description": "Notes libres"
+      }
+    ]
+  },
+  {
+    "name": "comptabilite_config",
+    "fields": [
+      {
+        "name": "id",
+        "type": "text",
+        "description": "Identifiant unique (un seul enregistrement par école)"
+      },
+      {
+        "name": "solde_initial_banque",
+        "type": "number",
+        "description": "Solde initial de démarrage en banque"
+      },
+      {
+        "name": "solde_initial_caisse",
+        "type": "number",
+        "description": "Solde initial de démarrage en caisse espèces"
+      },
+      {
+        "name": "date_debut_exercice",
+        "type": "text",
+        "description": "Date de début de l'exercice comptable"
+      },
+      {
+        "name": "annee_scolaire",
+        "type": "text",
+        "description": "Année scolaire concernée (ex: 2024-2025)"
+      },
+      {
+        "name": "ecole_code",
+        "type": "text",
+        "description": "Code de l'école (multi-tenancy)"
+      },
+      {
+        "name": "devise",
+        "type": "text",
+        "description": "Devise utilisée (GNF, FCFA, USD...)"
+      }
+    ]
+  }
+]
