@@ -62,12 +62,6 @@
       const now = Date.now();
       const put = (table, row) => DB._idbPut(table, { ecole_code: CODE, created_at: now, ...row }, false);
 
-      // École (registre global) + configuration
-      await DB._idbPut('ecoles', {
-        id: 'ecole-demo', code: CODE, nom: 'École Démo Zean', ville: 'Conakry',
-        statut: 'actif', essai_fin: null, licence_fin: null, created_at: now
-      }, false);
-
       await put('ecole_config', {
         id: 'ecole-main', nom: 'École Démo Zean', adresse: 'Conakry, Guinée',
         telephone: '+224 600 00 00 00', email: 'contact@zean.app', devise: 'GNF',
@@ -87,15 +81,6 @@
         ]
       });
 
-      // Comptes de connexion (un par rôle)
-      const comptes = [
-        { email: 'admin@zean.app',      mot_de_passe: 'admin123',      role: 'admin',       prenom: 'Admin',    nom: 'Zean' },
-        { email: 'directeur@zean.app',  mot_de_passe: 'directeur123',  role: 'directeur',   prenom: 'Directeur', nom: 'Zean' },
-        { email: 'comptable@zean.app',  mot_de_passe: 'comptable123',  role: 'comptable',   prenom: 'Comptable', nom: 'Zean' },
-        { email: 'prof@zean.app',       mot_de_passe: 'prof123',       role: 'prof',        prenom: 'Professeur', nom: 'Zean' },
-        { email: 'superviseur@zean.app',mot_de_passe: 'superviseur123',role: 'superviseur', prenom: 'Superviseur', nom: 'Zean' }
-      ];
-      for (const c of comptes) await put('utilisateurs', { id: uid('user'), actif: true, ...c });
 
       // Classes, matières, tarifs — structure minimale exploitable
       const classes = [
