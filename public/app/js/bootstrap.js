@@ -15,11 +15,49 @@
 
   function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 10); }
 
+  const COMPTES = [
+    { email: 'admin@zean.app',      mot_de_passe: 'admin123',      role: 'admin',       prenom: 'Admin',    nom: 'Zean' },
+    { email: 'directeur@zean.app',  mot_de_passe: 'directeur123',  role: 'directeur',   prenom: 'Directeur', nom: 'Zean' },
+    { email: 'comptable@zean.app',  mot_de_passe: 'comptable123',  role: 'comptable',   prenom: 'Comptable', nom: 'Zean' },
+    { email: 'prof@zean.app',       mot_de_passe: 'prof123',       role: 'prof',        prenom: 'Professeur', nom: 'Zean' },
+    { email: 'superviseur@zean.app',mot_de_passe: 'superviseur123',role: 'superviseur', prenom: 'Superviseur', nom: 'Zean' }
+  ];
+
+  /** Garantit qu'au moins un compte valide existe pour l'école DEMO. */
+  async function ensureDemoAccounts() {
+    const prev = DB._currentEcoleCode;
+    DB._currentEcoleCode = null;                  // lecture brute
+    let all = [];
+    try { all = await DB._idbGetAll('utilisateurs'); }
+    finally { DB._currentEcoleCode = prev; }
+    const demoUsers = all.filter(u => (u.ecole_code || '').toUpperCase() === CODE);
+    const emails = new Set(demoUsers.map(u => (u.email || '').toLowerCase()));
+    const now = Date.now();
+    for (const c of COMPTES) {
+      if (emails.has(c.email)) continue;
+      await DB._idbPut('utilisateurs', {
+        id: uid('user'), ecole_code: CODE, created_at: now, actif: true, ...c
+      }, false);
+    }
+    DB._memInvalidate('utilisateurs');
+    return demoUsers.length === 0;
+  }
+
   async function seed() {
     if (typeof DB === 'undefined' || !DB._idbPut) return;
     try {
-      const existing = await DB._idbGetAll('utilisateurs');
-      if (existing && existing.length) { localStorage.setItem(FLAG, '1'); return; }
+      // 1. Toujours garantir l'école DEMO dans le registre global local
+      if (typeof DB.registerEcole === 'function') {
+        await DB.registerEcole({
+          id: 'ecole-demo', code: CODE, nom: 'École Démo Zean', ville: 'Conakry',
+          statut: 'actif', essai_fin: null, licence_fin: null
+        });
+      }
+      // 2. Toujours garantir au moins un compte DEMO utilisable
+      const wasEmpty = await ensureDemoAccounts();
+      // 3. Structure de démonstration : uniquement au tout premier lancement
+      if (!wasEmpty) { localStorage.setItem(FLAG, '1'); return; }
+
 
       const now = Date.now();
       const put = (table, row) => DB._idbPut(table, { ecole_code: CODE, created_at: now, ...row }, false);
