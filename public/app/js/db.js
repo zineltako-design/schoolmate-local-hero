@@ -641,9 +641,12 @@ const DB = {
    */
   async insert(table, data) {
     const enriched = { ...data };
-    // Multi-tenancy : forcer ecole_code
-    if (!this.GLOBAL_TABLES.includes(table) && this._currentEcoleCode) {
-      enriched.ecole_code = this._currentEcoleCode;
+    // Multi-tenancy : le code fourni explicitement gagne (création d'école /
+    // de compte depuis le SuperAdmin), sinon on force l'école courante.
+    if (!this.GLOBAL_TABLES.includes(table)) {
+      const explicit = (data.ecole_code || data.school_code || '').trim().toUpperCase();
+      if (explicit) enriched.ecole_code = explicit;
+      else if (this._currentEcoleCode) enriched.ecole_code = this._currentEcoleCode;
     }
     if (!enriched.id) {
       enriched.id = 'loc_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
@@ -669,9 +672,10 @@ const DB = {
   async update(table, id, data) {
     const existing = await this._idbGet(table, id) || {};
     const merged = { ...existing, ...data, id, updated_at: Date.now() };
-    // Préserver isolation école
-    if (!this.GLOBAL_TABLES.includes(table) && this._currentEcoleCode) {
-      merged.ecole_code = this._currentEcoleCode;
+    // Préserver isolation école (sans écraser un code déjà porté par la ligne)
+    if (!this.GLOBAL_TABLES.includes(table)) {
+      const keep = (data.ecole_code || existing.ecole_code || this._currentEcoleCode || '').trim().toUpperCase();
+      if (keep) merged.ecole_code = keep;
     }
 
     await this._idbPut(table, merged, true);
@@ -698,8 +702,27 @@ const DB = {
   // ══════════════════════════════════════════════════════════════════
 
   async getUsersByEcole(ecoleCode) {
+    const code = (ecoleCode || '').trim().toUpperCase();
+    const match = (rows) => {
+      if (!code) return rows;
+      const tagged = rows.filter(u => (u.ecole_code || u.school_code || '').trim().toUpperCase() === code);
+      if (tagged.length) return tagged;
+      // Legacy / mono-école : comptes sans tag utilisables uniquement s'il
+      // n'existe aucun compte tagué pour une autre école.
+      const untagged = rows.filter(u => !(u.ecole_code || u.school_code));
+      return untagged;
+    };
     try {
-      // Essayer cloud d'abord si en ligne (auth critique)
+      // 1. Lecture locale d'abord (local-first : la création est instantanée)
+      const prev = this._currentEcoleCode;
+      this._currentEcoleCode = null;         // lecture brute, sans filtre strict
+      let allLocal = [];
+      try { allLocal = await this._idbGetAll('utilisateurs'); }
+      finally { this._currentEcoleCode = prev; }
+      const local = match(allLocal);
+      if (local.length) return local;
+
+      // 2. Sinon seulement, tenter le cloud (si disponible)
       if (navigator.onLine) {
         try {
           const resp = await this._apiGet('tables/utilisateurs?limit=500');
@@ -708,29 +731,48 @@ const DB = {
             if (u.id) await this._idbPut('utilisateurs', u, false);
           }
           this._memInvalidate('utilisateurs');
-          if (ecoleCode) {
-            const code = ecoleCode.toUpperCase();
-            const filtered = rows.filter(u => {
-              const uc = (u.ecole_code || u.school_code || '').trim().toUpperCase();
-              return uc === code || uc === '' || uc === 'DEMO';
-            });
-            const hasTagged = rows.some(u => u.ecole_code || u.school_code);
-            return hasTagged ? filtered : rows;
-          }
-          return rows;
-        } catch (e) { console.warn('[ZeanDB] getUsersByEcole cloud:', e.message); }
+          return match(rows);
+        } catch (e) { console.warn('[ZeanDB] getUsersByEcole cloud indisponible :', e.message); }
       }
-      // Fallback IDB
-      const allLocal = await this._idbGetAll('utilisateurs');
-      if (!ecoleCode) return allLocal;
-      const code = ecoleCode.toUpperCase();
-      const filtered = allLocal.filter(u => {
-        const uc = (u.ecole_code || u.school_code || '').trim().toUpperCase();
-        return uc === code || uc === '' || uc === 'DEMO';
-      });
-      const hasTagged = allLocal.some(u => u.ecole_code || u.school_code);
-      return hasTagged ? filtered : allLocal;
+      return local;
     } catch { return []; }
+  },
+
+  /**
+   * findEcoleByCode — Recherche une école dans la table globale `ecoles`
+   * de l'IndexedDB. 100% local : une école créée est reconnue immédiatement,
+   * sans rafraîchissement réseau.
+   */
+  async findEcoleByCode(code) {
+    const c = (code || '').trim().toUpperCase();
+    if (!c) return null;
+    try {
+      const rows = await this._idbGetAll('ecoles');
+      return rows.find(e =>
+        (e.code || '').trim().toUpperCase() === c ||
+        (e.code_ecole || '').trim().toUpperCase() === c
+      ) || null;
+    } catch { return null; }
+  },
+
+  /**
+   * registerEcole — Enregistre / met à jour une école dans le registre global
+   * local (table `ecoles`) afin que son code soit connectable aussitôt.
+   */
+  async registerEcole(ecole) {
+    if (!ecole) return null;
+    const code = (ecole.code || ecole.code_ecole || '').trim().toUpperCase();
+    if (!code) return null;
+    const existing = await this.findEcoleByCode(code);
+    const row = {
+      id: existing?.id || ecole.id || 'ecole-' + Date.now(),
+      ...existing, ...ecole, code, code_ecole: code,
+      created_at: existing?.created_at || ecole.created_at || Date.now(),
+      updated_at: Date.now()
+    };
+    await this._idbPut('ecoles', row, false);
+    this._memInvalidate('ecoles');
+    return row;
   },
 
   // ══════════════════════════════════════════════════════════════════

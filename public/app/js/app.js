@@ -126,18 +126,32 @@ const App = {
       // Chercher l'école dans la table 'ecoles' (SaaS) OU dans 'ecole_config' (mono-école)
       let ecole = null;
 
-      // Tentative 1 : table SaaS 'ecoles' avec champ 'code'
+      // Tentative 0 (prioritaire) : registre LOCAL IndexedDB `ecoles`
+      // → une école créée depuis le SuperAdmin est reconnue immédiatement.
       try {
-        const resp = await fetch(`tables/ecoles?search=${encodeURIComponent(code)}&limit=20`);
-        if (resp.ok) {
-          const data = await resp.json();
-          const rows = data?.data || [];
-          ecole = rows.find(r =>
-            r.code?.toUpperCase() === code ||
-            r.code_ecole?.toUpperCase() === code
-          );
+        if (typeof DB.findEcoleByCode === 'function') {
+          ecole = await DB.findEcoleByCode(code);
         }
-      } catch { /* table ecoles peut ne pas exister */ }
+      } catch { /* ignore */ }
+
+      // Tentative 1 : table SaaS 'ecoles' distante (si l'API est disponible)
+      if (!ecole) {
+        try {
+          const resp = await fetch(`tables/ecoles?search=${encodeURIComponent(code)}&limit=20`);
+          if (resp.ok) {
+            const data = await resp.json();
+            const rows = data?.data || [];
+            ecole = rows.find(r =>
+              r.code?.toUpperCase() === code ||
+              r.code_ecole?.toUpperCase() === code
+            );
+            // Persister localement pour les connexions suivantes (hors-ligne)
+            if (ecole && typeof DB.registerEcole === 'function') {
+              try { await DB.registerEcole(ecole); } catch { /* ignore */ }
+            }
+          }
+        } catch { /* table ecoles peut ne pas exister */ }
+      }
 
       // Tentative 2 : table 'ecole_config' — code stocké dans le champ 'matricule_prefix' ou 'code_ecole'
       if (!ecole) {
@@ -166,6 +180,7 @@ const App = {
           ville: 'Conakry', statut: 'actif', essai_fin: null, licence_fin: null
         };
       }
+
 
       if (!ecole) {
         if (errEl) errEl.textContent = `Code "${code}" non reconnu. Vérifiez auprès de votre administration.`;

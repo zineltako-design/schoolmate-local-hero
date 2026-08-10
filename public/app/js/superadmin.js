@@ -629,8 +629,13 @@ const SAPages = {
     const ecoleId  = 'ecole-' + Date.now();
     try {
       SAModal.setBody('<div style="text-align:center;padding:2rem"><span class="sa-spinner" style="width:36px;height:36px;border-width:3px"></span><p style="margin-top:1rem">Création en cours…</p></div>');
-      // 1. Créer la fiche école (avec code unique pour la connexion multi-écoles)
-      await DB.insert('ecoles', {
+      // 0. Code déjà utilisé ?
+      if (typeof DB.findEcoleByCode === 'function' && await DB.findEcoleByCode(code)) {
+        SAModal.close();
+        SATk.error(`Le code "${code}" est déjà utilisé par une autre école.`);
+        return;
+      }
+      const fiche = {
         id: ecoleId,
         code,           // ← Code de connexion multi-écoles
         code_ecole: code,
@@ -648,10 +653,16 @@ const SAPages = {
         nb_eleves: 0, nb_utilisateurs: 1,
         plan: 'essai',
         notes_internes: document.getElementById('ne-notes')?.value || ''
-      });
+      };
+      // 1. Créer la fiche école (avec code unique pour la connexion multi-écoles)
+      await DB.insert('ecoles', fiche);
+      // 1bis. Enregistrement immédiat dans le registre local → code connectable
+      //       aussitôt, sans rafraîchissement réseau.
+      if (typeof DB.registerEcole === 'function') await DB.registerEcole(fiche);
       // 2. Créer le compte directeur dans la table utilisateurs (avec ecole_code)
       try {
         await DB.insert('utilisateurs', {
+          id: 'user-' + Date.now(),
           prenom: dirNom.split(' ')[0] || dirNom,
           nom: dirNom.split(' ').slice(1).join(' ') || '',
           email: dirEmail,
@@ -663,6 +674,20 @@ const SAPages = {
           ecole_nom: nom
         });
       } catch (e) { console.warn('Compte directeur non créé (table utilisateurs inaccessible):', e); }
+      // 3. Configuration minimale de l'école (assistant de démarrage ensuite)
+      try {
+        await DB.insert('ecole_config', {
+          id: 'cfg-' + ecoleId,
+          ecole_code: code,
+          nom, adresse: ville,
+          telephone: fiche.telephone,
+          devise: fiche.devise,
+          matricule_prefix: code,
+          code_ecole: code,
+          configured: false
+        });
+      } catch (e) { console.warn('Config école non créée :', e); }
+
 
       SAModal.close();
       SATk.success(`✓ École "${nom}" créée ! Code: <strong>${code}</strong> — Essai jusqu'au ${SAH.date(essaiFin)}.`);
