@@ -767,10 +767,9 @@ const DB = {
       if (local.length) return local;
 
       // 2. Sinon seulement, tenter le cloud (si disponible)
-      if (navigator.onLine) {
+      if (navigator.onLine && window.ZeanCloud) {
         try {
-          const resp = await this._apiGet('tables/utilisateurs?limit=500');
-          const rows = resp?.data || [];
+          const rows = await ZeanCloud.select('utilisateurs', code) || [];
           for (const u of rows) {
             if (u.id) await this._idbPut('utilisateurs', u, false);
           }
@@ -779,6 +778,7 @@ const DB = {
         } catch (e) { console.warn('[ZeanDB] getUsersByEcole cloud indisponible :', e.message); }
       }
       return local;
+
     } catch { return []; }
   },
 
