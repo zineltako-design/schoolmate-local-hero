@@ -188,7 +188,12 @@ const ZeanCloud = {
         case 'n':  v = (v === '' || v === null) ? null : Number(v); if (Number.isNaN(v)) v = null; break;
         case 'b':  v = (v === null || v === undefined) ? null : !!v; break;
         case 'd':  v = this._toIso(v); break;
-        case 'ms': v = (v === null || v === undefined || v === '') ? null : Number(new Date(v).getTime ? (typeof v === 'number' ? v : Date.parse(v) || Number(v)) : v); if (Number.isNaN(v)) v = null; break;
+        case 'ms': {
+          if (v === null || v === undefined || v === '') { v = null; break; }
+          v = (typeof v === 'number') ? v : (Date.parse(v) || Number(v));
+          if (Number.isNaN(v)) v = null;
+          break;
+        }
         case 'j':  v = (v === null || v === undefined) ? null : v; break;
         default:   v = (v === null || v === undefined) ? null : String(v); break;
       }
