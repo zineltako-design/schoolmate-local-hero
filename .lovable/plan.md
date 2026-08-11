@@ -1,55 +1,55 @@
-# Recommandations d'amélioration — Zean School Manager
+# Passage au cloud partagé (base de données intégrée)
 
-Le projet fonctionne (login 2 étapes, 18 tables IndexedDB, tous les modules). Voici les axes d'amélioration classés par priorité, à valider avant toute implémentation.
+Objectif : les données ne vivent plus seulement dans le navigateur. Toi, ton mari et tout autre membre de l'école voyez les mêmes élèves, notes, paiements, en temps réel — et rien ne s'efface en navigation privée.
 
-## Priorité 1 — Sécurité des comptes
+L'application reste exactement la même à l'écran : mêmes pages, même connexion en 2 étapes (code école, puis email + mot de passe). Tout le changement est en coulisses.
 
-- Les mots de passe sont stockés et comparés en clair (`js/app.js` compare `u.mot_de_passe === pwd`, `js/bootstrap.js` injecte `admin123` etc.). Recommandation : hachage via l'API Web Crypto (PBKDF2/SHA-256 + sel par utilisateur), avec migration transparente au premier login des comptes existants.
-- Comptes de démo à mots de passe connus : les cantonner à l'école `DEMO` et forcer un changement de mot de passe à la première connexion pour toute nouvelle école.
-- Verrouillage après N tentatives échouées et journalisation dans la table d'audit.
+## 1. Activation de la base cloud
 
-## Priorité 2 — Fiabilité hors-ligne
+Activation de la base de données intégrée du projet (base Postgres + comptes utilisateurs + temps réel), sans compte externe à créer.
 
-- `sw.js` met en cache des chemins racine (`/index.html`, `/js/db.js`) alors que l'app est servie sous `/app/`. Recommandation : chemins relatifs, `CACHE_NAME` versionné automatiquement et purge des anciens caches à l'activation.
-- Ajouter un indicateur clair « données non synchronisées » basé sur la `write_queue`, avec compteur et bouton de relance manuelle.
-- Gérer explicitement l'absence d'API distante (mode 100 % local) au lieu de dépendre d'échecs `fetch` silencieux.
+## 2. Création des tables
 
-## Priorité 3 — Sauvegarde et restauration
+Création des 18 tables du schéma actuel, à l'identique (mêmes noms, mêmes champs) :
 
-- L'export JSON existe déjà ; ajouter une restauration robuste (validation du schéma, choix fusion ou remplacement, aperçu avant import) et un export chiffré optionnel.
-- Sauvegarde automatique périodique (téléchargement mensuel proposé à la clôture) pour éviter la perte du navigateur.
+`ecole_config`, `classes`, `eleves`, `matieres`, `utilisateurs`, `notes`, `paiements`, `depenses`, `config_scolarite`, `notes_audit_log`, `presences`, `archives_eleves`, `archives_finances`, `ecoles`, `licences_keys`, `abonnements`, `annonces_plateforme`, `comptabilite_caisse`, `comptabilite_banque`, `comptabilite_config`.
 
-## Priorité 4 — Maintenabilité du code
+Chaque table liée à une école porte la colonne `ecole_code`, indexée. La base cloud démarre vide (choix retenu) : les données locales actuelles ne sont pas poussées.
 
-- `js/pages.js` fait 7 403 lignes. Recommandation : découpage progressif par domaine (`pages.eleves.js`, `pages.notes.js`, `pages.caisse.js`, `pages.rapports.js`) sans changer les API publiques `Pages.*`, module par module pour éviter toute régression.
-- Réintégrer dans `js/db.js` les fonctions actuellement dans `js/db-extras.js` (`getStatsDashboard`, `getEcheances`, `getRapportFinancier`…) pour n'avoir qu'une source de vérité.
-- Centraliser le rendu des tableaux/modales (helpers communs) : beaucoup de HTML est dupliqué entre modules.
+## 3. Sécurité : cloisonnement par école
 
-## Priorité 5 — Qualité de données et UX
+- Chaque compte cloud est rattaché à une école et à un rôle (admin, directeur, prof, comptable, superviseur).
+- Le serveur, et non le navigateur, décide de ce qui est lisible : un compte ne peut lire ni écrire que les lignes de son école. Impossible d'aller voir les données d'une autre école, même en trafiquant l'application.
+- Les tables globales (écoles, licences, abonnements, annonces) sont réservées au SuperAdmin.
+- Les mots de passe ne sont plus stockés en clair : ils sont gérés et chiffrés par le service de comptes du cloud.
 
-- Validation stricte à la saisie (email unique par école, montants positifs, notes bornées par le barème, dates cohérentes avec l'année scolaire).
-- Confirmation systématique + suppression logique (corbeille) pour les entités financières et les élèves, plutôt qu'une suppression définitive.
-- Recherche globale (élève, reçu, utilisateur) et pagination/virtualisation des listes au-delà de quelques centaines de lignes.
-- Accessibilité et mobile : l'interface est consultée en 360 px de large ; vérifier les tableaux scrollables, tailles de cibles tactiles, contrastes.
+## 4. Connexion : même écran, sécurité réelle
 
-## Priorité 6 — Vérification automatisée
+- Étape 1 : le code école est vérifié dans la table `ecoles` du cloud.
+- Étape 2 : email + mot de passe ouvrent une vraie session cloud en arrière-plan ; l'app vérifie ensuite que le compte appartient bien au code école saisi.
+- Création d'un membre depuis le panneau « Utilisateurs » : le compte cloud est créé et rattaché à l'école connectée, utilisable immédiatement par la personne concernée depuis son propre appareil.
+- Création d'une école depuis le SuperAdmin : école + compte directeur créés côté cloud, connectables tout de suite.
+- Un compte de démarrage administrateur est créé pour ton école afin de ne jamais être bloquée à la première connexion.
 
-- Petite suite de tests navigateur (Playwright) couvrant : login 2 étapes, création d'école, création d'utilisateur, inscription d'un élève, saisie de notes + bulletin, paiement + reçu, clôture. Objectif : détecter les régressions avant qu'elles n'apparaissent en préview.
+## 5. Synchronisation dans js/db.js
+
+Le fonctionnement « local d'abord » est conservé (affichage instantané, tolérance aux coupures réseau), mais le cloud devient la source de vérité :
+
+- Lecture : cloud au chargement de la session, stockage local pour l'affichage immédiat et le mode hors-ligne.
+- Écriture : enregistrement local instantané + envoi cloud immédiat ; en cas de coupure, la file d'attente existante renvoie automatiquement au retour du réseau.
+- Temps réel : quand ton mari saisit un paiement, ton écran se met à jour sans rafraîchir.
+- Le filtre `ecole_code` est appliqué localement **et** verrouillé côté serveur (double barrière).
+
+## 6. Vérification
+
+Test réel dans le navigateur : connexion, ajout d'un élève / d'une note / d'un paiement, contrôle que la donnée arrive bien dans la base cloud, qu'une seconde session la voit apparaître, et qu'un compte d'une autre école ne voit rien.
 
 ## Détails techniques
 
-- Hachage : `crypto.subtle.deriveBits` PBKDF2, 100 000 itérations, sel 16 octets ; champs ajoutés `pwd_hash`, `pwd_salt`, `pwd_algo`, ancien champ conservé le temps de la migration puis effacé.
-- Découpage `pages.js` : chaque fichier étend l'objet global `Pages` (`Object.assign(Pages, {...})`), chargé après `pages.core.js` dans `index.html` ; aucun changement d'appel dans le routeur.
-- Service worker : `self.registration.scope` comme base des URLs mises en cache, stratégie cache-first inchangée pour le shell.
-- Aucune modification du filtrage multi-tenant `ecole_code` ni transformation de `getAll()` en appel réseau.
-
-## Ordre proposé
-
-1. Sécurité mots de passe + verrouillage
-2. Correctif service worker + indicateur de synchronisation
-3. Restauration de sauvegarde
-4. Tests de non-régression
-5. Découpage de `pages.js`
-6. Améliorations UX / validation
-
-Dis-moi quels blocs tu veux garder et dans quel ordre, je n'implémente rien avant ton accord.
+- Base intégrée (Supabase) activée via l'outil Cloud ; tables créées par migration SQL avec `GRANT` + RLS activée sur chacune.
+- RLS basée sur une table `profils` (`user_id`, `ecole_code`, `role`, `actif`) et des fonctions `SECURITY DEFINER` (`current_ecole_code()`, `has_role()`) pour éviter toute récursion de politique.
+- La table `utilisateurs` conserve les informations métier (rôle, classe titulaire, matières autorisées) ; l'authentification passe par `auth.users`. Aucun mot de passe en clair conservé.
+- Création de comptes par un admin : route serveur protégée (vérification du rôle appelant) utilisant l'API admin, plutôt qu'une inscription publique.
+- `js/db.js` : la couche transport `tables/…` (`_apiGet`/`_apiPost`/`_pullFromCloud`/`_pushToCloud`) est remplacée par des appels PostgREST du client Supabase chargé dans `public/app/index.html`. `getAll`, `getById`, `query`, `insert`, `update`, `delete`, `getUsersByEcole` gardent leurs signatures — `pages.js`, `app.js`, `superadmin.js`, `db-extras.js` ne changent pas de contrat.
+- `insert`/`update` envoient un `upsert` idempotent sur `id` ; les suppressions restent en soft-delete synchronisé.
+- Abonnements temps réel par table de l'école courante, avec invalidation du cache mémoire et re-render de la page active.
