@@ -407,32 +407,35 @@ const DB = {
   // SYNCHRONISATION CLOUD ← → LOCAL
   // ══════════════════════════════════════════════════════════════════
 
+  /** Cloud disponible (librairie + réseau + session) ? */
+  async _cloudReady() {
+    if (!window.ZeanCloud) return false;
+    return ZeanCloud.isReady();
+  },
+
   /**
-   * PULL : télécharge les données cloud et met à jour IndexedDB.
-   * Ne bloque jamais l'UI — exécuté en fond.
+   * PULL : télécharge les données cloud partagées et met à jour IndexedDB.
+   * Filtre ecole_code appliqué côté client ET côté serveur (RLS).
    */
-  async _pullFromCloud(table, limit = 500) {
-    if (!navigator.onLine) return;
+  async _pullFromCloud(table, limit = 2000) {
+    if (!navigator.onLine || !window.ZeanCloud) return;
     try {
-      const resp = await this._apiGet(`tables/${table}?limit=${limit}&page=1`);
-      const rows = resp?.data || [];
+      const rows = await ZeanCloud.select(table, this._currentEcoleCode, limit);
+      if (!rows) return;                       // cloud indisponible → on garde le local
       await this._idbReplaceAll(table, rows);
       this._memInvalidate(table);
     } catch (err) {
-      const code = (err.message||'').match(/→ (\d+)/)?.[1];
-      if (!['404','422'].includes(code)) {
-        console.warn(`[ZeanDB] Pull échoué "${table}":`, err.message);
-      }
+      console.warn(`[ZeanDB] Pull échoué "${table}":`, err.message);
     }
   },
 
   /**
-   * PUSH : envoie les actions en write_queue vers le cloud.
+   * PUSH : envoie les écritures en attente vers le cloud partagé.
    * Exécuté en arrière-plan — ne bloque jamais l'UI.
-   * Après succès : re-marque les records comme propres (non-dirty).
    */
   async _pushToCloud() {
-    if (!navigator.onLine || this._syncing) return;
+    if (!navigator.onLine || this._syncing || !window.ZeanCloud) return;
+    if (!(await this._cloudReady())) return;   // pas de session cloud → reste local
     const pending = await this._wqGetPending();
     if (!pending.length) return;
 
@@ -441,17 +444,14 @@ const DB = {
 
     for (const entry of pending) {
       if ((entry.retries||0) >= 5) { await this._wqMarkSynced(entry.wqId); continue; }
+      if (!ZeanCloud.isTable(entry.table)) { await this._wqMarkSynced(entry.wqId); continue; }
       try {
-        if (entry.method === 'POST') {
-          await this._apiPost(`tables/${entry.table}`, entry.data).catch(async () => {
-            if (entry.data?.id) {
-              await this._apiPatch(`tables/${entry.table}/${entry.data.id}`, entry.data);
-            }
-          });
-        } else if (entry.method === 'PATCH' && entry.id) {
-          await this._apiPatch(`tables/${entry.table}/${entry.id}`, entry.data);
-        } else if (entry.method === 'DELETE' && entry.id) {
-          await this._apiDelete(`tables/${entry.table}/${entry.id}`);
+        if (entry.method === 'DELETE' && entry.id) {
+          await ZeanCloud.remove(entry.table, entry.id);
+        } else {
+          // On pousse toujours l'état local complet de la ligne (POST comme PATCH)
+          const full = (entry.id ? await this._idbGet(entry.table, entry.id) : null) || entry.data;
+          if (full) await ZeanCloud.upsert(entry.table, full, entry.ecole_code || this._currentEcoleCode);
         }
 
         await this._wqMarkSynced(entry.wqId);
@@ -485,6 +485,45 @@ const DB = {
       this._showSyncBadge(synced);
     }
   },
+
+  // ══════════════════════════════════════════════════════════════════
+  // TEMPS RÉEL — collaboration entre plusieurs utilisateurs
+  // ══════════════════════════════════════════════════════════════════
+
+  SYNC_TABLES: [
+    'eleves','classes','matieres','notes','paiements','depenses',
+    'presences','config_scolarite','ecole_config','utilisateurs',
+    'notes_audit_log','comptabilite_caisse','comptabilite_banque',
+    'comptabilite_config','archives_eleves','archives_finances'
+  ],
+
+  _rtTimers: {},
+
+  /**
+   * startRealtime : à la moindre modification faite par un collègue,
+   * la table concernée est re-tirée du cloud puis la page rafraîchie.
+   */
+  startRealtime() {
+    if (!window.ZeanCloud || !this._currentEcoleCode) return;
+    ZeanCloud.subscribe(this.SYNC_TABLES, this._currentEcoleCode, (table) => {
+      clearTimeout(this._rtTimers[table]);
+      this._rtTimers[table] = setTimeout(async () => {
+        await this._pullFromCloud(table);
+        try {
+          if (typeof App !== 'undefined' && typeof App.refreshCurrentPage === 'function') {
+            App.refreshCurrentPage();
+          } else if (typeof Router !== 'undefined' && typeof Router.reload === 'function') {
+            Router.reload();
+          }
+        } catch {}
+      }, 400);
+    });
+  },
+
+  stopRealtime() {
+    try { window.ZeanCloud && ZeanCloud.unsubscribeAll(); } catch {}
+  },
+
 
   _showSyncBadge(count) {
     try {
@@ -525,17 +564,12 @@ const DB = {
    * Si offline → retourne immédiatement (IDB déjà peuplée).
    */
   async _initialPull() {
-    if (!navigator.onLine) {
-      console.log('[ZeanDB] Offline — utilisation des données locales');
+    if (!navigator.onLine || !(await this._cloudReady())) {
+      console.log('[ZeanDB] Cloud indisponible — utilisation des données locales');
       this._pullReady = true;
       return;
     }
-    const tables = [
-      'eleves','classes','matieres','notes','paiements','depenses',
-      'presences','config_scolarite','ecole_config','utilisateurs',
-      'annonces_plateforme','notes_audit_log','comptabilite_caisse',
-      'comptabilite_banque','comptabilite_config'
-    ];
+    const tables = [...this.SYNC_TABLES, 'annonces_plateforme'];
     // Pull en parallèle par groupes de 5
     const chunks = [];
     for (let i = 0; i < tables.length; i += 5) chunks.push(tables.slice(i, i+5));
@@ -543,8 +577,10 @@ const DB = {
       await Promise.allSettled(chunk.map(t => this._pullFromCloud(t)));
     }
     this._pullReady = true;
-    console.log('[ZeanDB] Pull initial terminé — données locales à jour');
+    this.startRealtime();
+    console.log('[ZeanDB] Pull initial terminé — données cloud à jour');
   },
+
 
   // ══════════════════════════════════════════════════════════════════
   // CACHE MÉMOIRE (accélération lectures répétées dans une même page)
@@ -618,14 +654,22 @@ const DB = {
    * Fallback API directe si en ligne pour les grandes listes SA.
    */
   async getAllPaged(table, page = 1, limit = 50, search = '') {
-    // Pour SA (pas de code école) et en ligne → API directe pour vrai total
-    if (!this._currentEcoleCode && navigator.onLine) {
+    // Pour SA (pas de code école) et en ligne → lecture cloud directe
+    if (!this._currentEcoleCode && navigator.onLine && window.ZeanCloud) {
       try {
-        const url = `tables/${table}?page=${page}&limit=${limit}${search ? '&search='+encodeURIComponent(search) : ''}`;
-        const data = await this._apiGet(url);
-        return data || { data: [], total: 0, page: 1, limit };
+        const rows = await ZeanCloud.select(table, null, 2000);
+        if (rows) {
+          for (const r of rows) { if (r.id) await this._idbPut(table, r, false); }
+          this._memInvalidate(table);
+          const filtered = search
+            ? rows.filter(r => JSON.stringify(r).toLowerCase().includes(search.toLowerCase()))
+            : rows;
+          const start = (page-1)*limit;
+          return { data: filtered.slice(start, start+limit), total: filtered.length, page, limit };
+        }
       } catch {}
     }
+
     // Sinon : pagination locale sur IDB
     const all = await this.getAll(table, 2000);
     const filtered = search
@@ -723,10 +767,9 @@ const DB = {
       if (local.length) return local;
 
       // 2. Sinon seulement, tenter le cloud (si disponible)
-      if (navigator.onLine) {
+      if (navigator.onLine && window.ZeanCloud) {
         try {
-          const resp = await this._apiGet('tables/utilisateurs?limit=500');
-          const rows = resp?.data || [];
+          const rows = await ZeanCloud.select('utilisateurs', code) || [];
           for (const u of rows) {
             if (u.id) await this._idbPut('utilisateurs', u, false);
           }
@@ -735,6 +778,7 @@ const DB = {
         } catch (e) { console.warn('[ZeanDB] getUsersByEcole cloud indisponible :', e.message); }
       }
       return local;
+
     } catch { return []; }
   },
 

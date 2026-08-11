@@ -134,23 +134,18 @@ const App = {
         }
       } catch { /* ignore */ }
 
-      // Tentative 1 : table SaaS 'ecoles' distante (si l'API est disponible)
-      if (!ecole) {
+      // Tentative 1 : base cloud partagée (école créée sur un autre appareil)
+      if (!ecole && navigator.onLine && window.ZeanCloud) {
         try {
-          const resp = await fetch(`tables/ecoles?search=${encodeURIComponent(code)}&limit=20`);
-          if (resp.ok) {
-            const data = await resp.json();
-            const rows = data?.data || [];
-            ecole = rows.find(r =>
-              r.code?.toUpperCase() === code ||
-              r.code_ecole?.toUpperCase() === code
-            );
+          const row = await ZeanCloud.findEcoleByCode(code);
+          if (row) {
+            ecole = row;
             // Persister localement pour les connexions suivantes (hors-ligne)
-            if (ecole && typeof DB.registerEcole === 'function') {
+            if (typeof DB.registerEcole === 'function') {
               try { await DB.registerEcole(ecole); } catch { /* ignore */ }
             }
           }
-        } catch { /* table ecoles peut ne pas exister */ }
+        } catch { /* cloud indisponible */ }
       }
 
       // Tentative 2 : table 'ecole_config' — code stocké dans le champ 'matricule_prefix' ou 'code_ecole'
@@ -246,6 +241,17 @@ const App = {
       const ecoleData = sessionStorage.getItem('zean_school_data');
       const ecole     = ecoleData ? JSON.parse(ecoleData) : null;
 
+      // ── Authentification cloud (session réelle, partage entre appareils) ──
+      // L'écran de connexion reste identique : on tente d'ouvrir une session
+      // cloud en arrière-plan, puis on retombe sur le contrôle local.
+      let cloudProfil = null;
+      if (navigator.onLine && window.ZeanCloud) {
+        try {
+          const res = await ZeanCloud.signIn(email, pwd);
+          if (!res.error) cloudProfil = await ZeanCloud.getProfil();
+        } catch { /* mode local */ }
+      }
+
       // Charger les utilisateurs filtrés par école
       const users = await DB.getUsersByEcole(ecole?.code);
       const user  = users.find(u =>
@@ -254,7 +260,18 @@ const App = {
         u.actif !== false
       );
 
-      if (!user) {
+      // Compte présent dans le cloud mais pas encore en local → on l'adopte
+      let localUser = user;
+      if (!localUser && cloudProfil) {
+        localUser = {
+          id: cloudProfil.user_id, email: cloudProfil.email, role: cloudProfil.role,
+          prenom: cloudProfil.prenom, nom: cloudProfil.nom, actif: cloudProfil.actif !== false,
+          ecole_code: cloudProfil.ecole_code
+        };
+        try { await DB._idbPut('utilisateurs', localUser, false); } catch {}
+      }
+
+      if (!localUser) {
         errEl.textContent = 'Email ou mot de passe incorrect.';
         document.getElementById('login-pwd').classList.add('shake');
         setTimeout(() => document.getElementById('login-pwd').classList.remove('shake'), 500);
@@ -263,7 +280,7 @@ const App = {
 
       // Enrichir l'utilisateur avec les infos de l'école
       const enrichedUser = {
-        ...user,
+        ...localUser,
         ecole_code : ecole?.code  || user.ecole_code || '',
         ecole_id   : ecole?.id    || user.ecole_id   || '',
         ecole_nom  : ecole?.nom   || user.ecole_nom  || '',
@@ -271,7 +288,7 @@ const App = {
 
       this.saveSession(enrichedUser, ecole);
       await this.showApp();
-      Toast.success(`Bienvenue, ${user.prenom || user.nom} !`);
+      Toast.success(`Bienvenue, ${localUser.prenom || localUser.nom} !`);
 
     } catch (err) {
       errEl.textContent = 'Erreur de connexion au serveur. Réessayez.';
@@ -284,6 +301,8 @@ const App = {
 
   logout() {
     if (!confirm('Voulez-vous vraiment vous déconnecter ?')) return;
+    try { DB.stopRealtime && DB.stopRealtime(); } catch {}
+    try { window.ZeanCloud && ZeanCloud.signOut(); } catch {}
     this.clearSession();
     // Masquer le lock screen si visible
     const lock = document.getElementById('licence-lock-screen');
