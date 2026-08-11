@@ -654,14 +654,22 @@ const DB = {
    * Fallback API directe si en ligne pour les grandes listes SA.
    */
   async getAllPaged(table, page = 1, limit = 50, search = '') {
-    // Pour SA (pas de code école) et en ligne → API directe pour vrai total
-    if (!this._currentEcoleCode && navigator.onLine) {
+    // Pour SA (pas de code école) et en ligne → lecture cloud directe
+    if (!this._currentEcoleCode && navigator.onLine && window.ZeanCloud) {
       try {
-        const url = `tables/${table}?page=${page}&limit=${limit}${search ? '&search='+encodeURIComponent(search) : ''}`;
-        const data = await this._apiGet(url);
-        return data || { data: [], total: 0, page: 1, limit };
+        const rows = await ZeanCloud.select(table, null, 2000);
+        if (rows) {
+          for (const r of rows) { if (r.id) await this._idbPut(table, r, false); }
+          this._memInvalidate(table);
+          const filtered = search
+            ? rows.filter(r => JSON.stringify(r).toLowerCase().includes(search.toLowerCase()))
+            : rows;
+          const start = (page-1)*limit;
+          return { data: filtered.slice(start, start+limit), total: filtered.length, page, limit };
+        }
       } catch {}
     }
+
     // Sinon : pagination locale sur IDB
     const all = await this.getAll(table, 2000);
     const filtered = search
