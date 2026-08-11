@@ -564,17 +564,12 @@ const DB = {
    * Si offline → retourne immédiatement (IDB déjà peuplée).
    */
   async _initialPull() {
-    if (!navigator.onLine) {
-      console.log('[ZeanDB] Offline — utilisation des données locales');
+    if (!navigator.onLine || !(await this._cloudReady())) {
+      console.log('[ZeanDB] Cloud indisponible — utilisation des données locales');
       this._pullReady = true;
       return;
     }
-    const tables = [
-      'eleves','classes','matieres','notes','paiements','depenses',
-      'presences','config_scolarite','ecole_config','utilisateurs',
-      'annonces_plateforme','notes_audit_log','comptabilite_caisse',
-      'comptabilite_banque','comptabilite_config'
-    ];
+    const tables = [...this.SYNC_TABLES, 'annonces_plateforme'];
     // Pull en parallèle par groupes de 5
     const chunks = [];
     for (let i = 0; i < tables.length; i += 5) chunks.push(tables.slice(i, i+5));
@@ -582,8 +577,10 @@ const DB = {
       await Promise.allSettled(chunk.map(t => this._pullFromCloud(t)));
     }
     this._pullReady = true;
-    console.log('[ZeanDB] Pull initial terminé — données locales à jour');
+    this.startRealtime();
+    console.log('[ZeanDB] Pull initial terminé — données cloud à jour');
   },
+
 
   // ══════════════════════════════════════════════════════════════════
   // CACHE MÉMOIRE (accélération lectures répétées dans une même page)
