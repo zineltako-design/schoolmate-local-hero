@@ -248,6 +248,11 @@ const DB = {
   // WRITE QUEUE (actions à pousser vers le cloud)
   // ══════════════════════════════════════════════════════════════════
 
+  // ⚠️ IMPORTANT : IndexedDB refuse les booléens comme clés d'index.
+  //    On stocke donc `synced` en 0/1 et on filtre en JavaScript — sinon
+  //    la file renvoyait une liste vide et AUCUNE écriture ne partait
+  //    vers le cloud (bug historique de non-persistance).
+
   async _wqPush(table, method, id, data) {
     try {
       const db = await this._openIDB();
@@ -257,7 +262,7 @@ const DB = {
           table, method, id, data,
           ecole_code: this._currentEcoleCode || '',
           ts: Date.now(),
-          synced: false,
+          synced: 0,
           retries: 0
         });
         tx.oncomplete = () => resolve(true);
@@ -271,12 +276,17 @@ const DB = {
       const db = await this._openIDB();
       return new Promise((resolve) => {
         const tx  = db.transaction('write_queue', 'readonly');
-        const idx = tx.objectStore('write_queue').index('by_synced');
-        const req = idx.getAll(IDBKeyRange.only(false));
-        req.onsuccess = (e) => resolve((e.target.result || []).sort((a,b) => a.ts - b.ts));
-        req.onerror   = () => resolve([]);
+        const req = tx.objectStore('write_queue').getAll();
+        req.onsuccess = (e) => {
+          const rows = (e.target.result || []).filter(r => !r.synced);
+          resolve(rows.sort((a, b) => a.ts - b.ts));
+        };
+        req.onerror = () => resolve([]);
       });
-    } catch { return []; }
+    } catch (err) {
+      console.warn('[ZeanDB] File d\'attente illisible :', err.message);
+      return [];
+    }
   },
 
   async _wqMarkSynced(wqId) {
@@ -288,7 +298,7 @@ const DB = {
         const get   = store.get(wqId);
         get.onsuccess = (e) => {
           const r = e.target.result;
-          if (r) { r.synced = true; r.syncedAt = Date.now(); store.put(r); }
+          if (r) { r.synced = 1; r.syncedAt = Date.now(); store.put(r); }
           resolve();
         };
         get.onerror = () => resolve();
@@ -317,17 +327,25 @@ const DB = {
     try {
       const db = await this._openIDB();
       return new Promise((resolve) => {
-        const tx  = db.transaction('write_queue', 'readwrite');
-        const idx = tx.objectStore('write_queue').index('by_synced');
-        const req = idx.openCursor(IDBKeyRange.only(true));
+        const tx    = db.transaction('write_queue', 'readwrite');
+        const store = tx.objectStore('write_queue');
+        const req   = store.openCursor();
         req.onsuccess = (e) => {
           const c = e.target.result;
-          if (c) { c.delete(); c.continue(); } else resolve();
+          if (!c) return resolve();
+          if (c.value && c.value.synced) c.delete();
+          c.continue();
         };
         req.onerror = () => resolve();
       });
     } catch {}
   },
+
+  /** Nombre d'écritures encore en attente d'envoi au cloud. */
+  async pendingCount() {
+    return (await this._wqGetPending()).length;
+  },
+
 
   // Purger TOUS les records d'une table dans IDB (reset)
   async _idbClearTable(table) {
@@ -473,7 +491,11 @@ const DB = {
 
         synced++;
       } catch (err) {
-        await this._wqIncrRetries(entry.wqId, err.message);
+        const n = await this._wqIncrRetries(entry.wqId, err.message);
+        console.warn(`[ZeanDB] Envoi cloud échoué (${entry.table}, essai ${n}) :`, err.message);
+        if (n >= 5 && typeof Toast !== 'undefined') {
+          Toast.error(`Synchronisation impossible (${entry.table}) : ${err.message}`);
+        }
       }
     }
 

@@ -278,13 +278,22 @@ const App = {
         return;
       }
 
+      // Un compte cloud ne peut pas ouvrir une autre école (cloisonnement)
+      if (cloudProfil && ecole?.code &&
+          (cloudProfil.ecole_code || '').toUpperCase() !== ecole.code.toUpperCase() &&
+          !cloudProfil.superadmin) {
+        errEl.textContent = "Ce compte n'appartient pas à cette école.";
+        return;
+      }
+
       // Enrichir l'utilisateur avec les infos de l'école
       const enrichedUser = {
         ...localUser,
-        ecole_code : ecole?.code  || user.ecole_code || '',
-        ecole_id   : ecole?.id    || user.ecole_id   || '',
-        ecole_nom  : ecole?.nom   || user.ecole_nom  || '',
+        ecole_code : ecole?.code  || localUser.ecole_code || '',
+        ecole_id   : ecole?.id    || localUser.ecole_id   || '',
+        ecole_nom  : ecole?.nom   || localUser.ecole_nom  || '',
       };
+
 
       this.saveSession(enrichedUser, ecole);
       await this.showApp();

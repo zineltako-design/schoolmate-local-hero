@@ -10,33 +10,90 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicZeanBootstrapRouteImport } from './routes/api/public/zean/bootstrap'
+import { Route as ApiPublicZeanEcolesRouteImport } from './routes/api/public/zean/ecoles'
+import { Route as ApiPublicZeanLicenceRouteImport } from './routes/api/public/zean/licence'
+import { Route as ApiPublicZeanUtilisateursRouteImport } from './routes/api/public/zean/utilisateurs'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicZeanBootstrapRoute = ApiPublicZeanBootstrapRouteImport.update({
+  id: '/api/public/zean/bootstrap',
+  path: '/api/public/zean/bootstrap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicZeanEcolesRoute = ApiPublicZeanEcolesRouteImport.update({
+  id: '/api/public/zean/ecoles',
+  path: '/api/public/zean/ecoles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicZeanLicenceRoute = ApiPublicZeanLicenceRouteImport.update({
+  id: '/api/public/zean/licence',
+  path: '/api/public/zean/licence',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicZeanUtilisateursRoute =
+  ApiPublicZeanUtilisateursRouteImport.update({
+    id: '/api/public/zean/utilisateurs',
+    path: '/api/public/zean/utilisateurs',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/public/zean/bootstrap': typeof ApiPublicZeanBootstrapRoute
+  '/api/public/zean/ecoles': typeof ApiPublicZeanEcolesRoute
+  '/api/public/zean/licence': typeof ApiPublicZeanLicenceRoute
+  '/api/public/zean/utilisateurs': typeof ApiPublicZeanUtilisateursRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/public/zean/bootstrap': typeof ApiPublicZeanBootstrapRoute
+  '/api/public/zean/ecoles': typeof ApiPublicZeanEcolesRoute
+  '/api/public/zean/licence': typeof ApiPublicZeanLicenceRoute
+  '/api/public/zean/utilisateurs': typeof ApiPublicZeanUtilisateursRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/public/zean/bootstrap': typeof ApiPublicZeanBootstrapRoute
+  '/api/public/zean/ecoles': typeof ApiPublicZeanEcolesRoute
+  '/api/public/zean/licence': typeof ApiPublicZeanLicenceRoute
+  '/api/public/zean/utilisateurs': typeof ApiPublicZeanUtilisateursRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/api/public/zean/bootstrap'
+    | '/api/public/zean/ecoles'
+    | '/api/public/zean/licence'
+    | '/api/public/zean/utilisateurs'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/api/public/zean/bootstrap'
+    | '/api/public/zean/ecoles'
+    | '/api/public/zean/licence'
+    | '/api/public/zean/utilisateurs'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/public/zean/bootstrap'
+    | '/api/public/zean/ecoles'
+    | '/api/public/zean/licence'
+    | '/api/public/zean/utilisateurs'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiPublicZeanBootstrapRoute: typeof ApiPublicZeanBootstrapRoute
+  ApiPublicZeanEcolesRoute: typeof ApiPublicZeanEcolesRoute
+  ApiPublicZeanLicenceRoute: typeof ApiPublicZeanLicenceRoute
+  ApiPublicZeanUtilisateursRoute: typeof ApiPublicZeanUtilisateursRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +105,43 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/zean/bootstrap': {
+      id: '/api/public/zean/bootstrap'
+      path: '/api/public/zean/bootstrap'
+      fullPath: '/api/public/zean/bootstrap'
+      preLoaderRoute: typeof ApiPublicZeanBootstrapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/zean/ecoles': {
+      id: '/api/public/zean/ecoles'
+      path: '/api/public/zean/ecoles'
+      fullPath: '/api/public/zean/ecoles'
+      preLoaderRoute: typeof ApiPublicZeanEcolesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/zean/licence': {
+      id: '/api/public/zean/licence'
+      path: '/api/public/zean/licence'
+      fullPath: '/api/public/zean/licence'
+      preLoaderRoute: typeof ApiPublicZeanLicenceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/zean/utilisateurs': {
+      id: '/api/public/zean/utilisateurs'
+      path: '/api/public/zean/utilisateurs'
+      fullPath: '/api/public/zean/utilisateurs'
+      preLoaderRoute: typeof ApiPublicZeanUtilisateursRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiPublicZeanBootstrapRoute: ApiPublicZeanBootstrapRoute,
+  ApiPublicZeanEcolesRoute: ApiPublicZeanEcolesRoute,
+  ApiPublicZeanLicenceRoute: ApiPublicZeanLicenceRoute,
+  ApiPublicZeanUtilisateursRoute: ApiPublicZeanUtilisateursRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
