@@ -5159,16 +5159,41 @@ const Pages = {
       const userNom = `${prenom} ${nom}`;
 
       if (id) { await DB.update('utilisateurs', id, data); Toast.success('Utilisateur mis à jour !'); }
-      else { await DB.insert('utilisateurs', { ...data, actif: true }); Toast.success('Utilisateur créé !'); }
+      else {
+        // Création d'un vrai compte cloud (mot de passe chiffré côté serveur)
+        // → la personne se connecte depuis son propre appareil aussitôt.
+        let cloudOk = false;
+        try {
+          const res = await ZeanAPI.createUtilisateur({
+            email, password: pwd, prenom, nom, role,
+            classe_id: data.classe_id || '',
+            matieres_ids: data.matieres_ids || [],
+            ecole_code: App.currentUser?.ecole_code || '',
+          });
+          // Miroir local pour l'affichage immédiat
+          await DB._idbPut('utilisateurs', { ...res.utilisateur, mot_de_passe: pwd }, false);
+          cloudOk = true;
+          Toast.success('Compte créé et partagé sur tous les appareils !');
+        } catch (e) {
+          console.warn('[Utilisateurs] Création cloud impossible :', e.message);
+        }
+        if (!cloudOk) {
+          await DB.insert('utilisateurs', { ...data, actif: true });
+          Toast.warning
+            ? Toast.warning('Compte créé localement uniquement (cloud injoignable).')
+            : Toast.info('Compte créé localement uniquement (cloud injoignable).');
+        }
+      }
 
       // Notification MDP (info uniquement — pas d'envoi serveur disponible)
       if (pwd && isNewUser) {
-        Toast.info(`📧 Information : Pour ${userNom} (${userEmail}), veuillez lui communiquer son MDP manuellement. La notification email nécessite un service backend non disponible en mode statique.`);
+        Toast.info(`📧 Information : Pour ${userNom} (${userEmail}), veuillez lui communiquer son MDP manuellement.`);
       } else if (pwd && !isNewUser) {
         Toast.info(`📧 Information : Pour ${userNom} — MDP modifié. Communiquez-lui son nouveau mot de passe manuellement.`);
       }
 
       Modal.close(); Pages.utilisateurs();
+
     } catch (err) { Toast.error('Erreur : ' + err.message); Debounce.release(btn, '<i class="fa-solid fa-save"></i> Enregistrer'); }
   },
 

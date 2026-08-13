@@ -98,20 +98,37 @@ const SA = {
     errEl.textContent = '';
     btn.disabled = true;
     btn.innerHTML = '<span class="sa-spinner"></span> Vérification…';
-    await new Promise(r => setTimeout(r, 600)); // anti-brute force cosmétique
+    // ── Session cloud réelle : indispensable pour écrire dans la base
+    //    partagée (écoles, licences, abonnements, annonces). ─────────────
+    try {
+      const estMaster = email.toLowerCase() === SA_MASTER_EMAIL.toLowerCase() && pwd === SA_MASTER_PASSWORD;
 
-    if (email.toLowerCase() === SA_MASTER_EMAIL.toLowerCase() && pwd === SA_MASTER_PASSWORD) {
+      // Première utilisation : on crée le compte Éditrice côté serveur.
+      if (estMaster && window.ZeanAPI) {
+        try { await ZeanAPI.bootstrapSuperAdmin(SA_MASTER_EMAIL, SA_MASTER_PASSWORD); } catch {}
+      }
+
+      const res = await ZeanCloud.signIn(email, pwd);
+      if (res.error) throw new Error(res.error);
+      const profil = await ZeanCloud.getProfil();
+      if (!profil || !profil.superadmin) {
+        await ZeanCloud.signOut();
+        throw new Error("Ce compte n'a pas les droits Éditrice.");
+      }
+
       sessionStorage.setItem(SA_SESSION_KEY, JSON.stringify({ email, login_at: Date.now() }));
       await this._showApp();
       SATk.success('Connexion réussie. Bienvenue !');
-    } else {
-      errEl.textContent = 'Identifiants incorrects.';
+    } catch (err) {
+      errEl.textContent = err.message === 'Invalid login credentials'
+        ? 'Identifiants incorrects.' : (err.message || 'Identifiants incorrects.');
       document.getElementById('sa-pwd').style.borderColor = '#e74c3c';
       setTimeout(() => { document.getElementById('sa-pwd').style.borderColor = ''; }, 2000);
     }
     btn.disabled = false;
     btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Accéder au panneau de contrôle';
   },
+
 
   // ── NAVIGATION ────────────────────────────────────────────────
   buildNav() {
@@ -626,74 +643,37 @@ const SAPages = {
     }
     const now      = new Date();
     const essaiFin = new Date(now.getTime() + ESSAI_DUREE_JOURS * 86400000);
-    const ecoleId  = 'ecole-' + Date.now();
     try {
       SAModal.setBody('<div style="text-align:center;padding:2rem"><span class="sa-spinner" style="width:36px;height:36px;border-width:3px"></span><p style="margin-top:1rem">Création en cours…</p></div>');
-      // 0. Code déjà utilisé ?
-      if (typeof DB.findEcoleByCode === 'function' && await DB.findEcoleByCode(code)) {
-        SAModal.close();
-        SATk.error(`Le code "${code}" est déjà utilisé par une autre école.`);
-        return;
-      }
-      const fiche = {
-        id: ecoleId,
-        code,           // ← Code de connexion multi-écoles
-        code_ecole: code,
-        nom, ville,
+
+      // Création atomique côté serveur : école + compte directeur + profil
+      // + configuration initiale. Écrit DIRECTEMENT dans la base partagée,
+      // donc le code école est reconnu immédiatement sur tout appareil.
+      const res = await ZeanAPI.createEcole({
+        code, nom, ville,
         pays: document.getElementById('ne-pays')?.value || 'Guinée',
         telephone: document.getElementById('ne-tel')?.value || '',
         directeur_nom: dirNom,
         directeur_email: dirEmail,
-        directeur_password_hash: dirPwd,
+        directeur_password: dirPwd,
         devise: document.getElementById('ne-devise')?.value || 'GNF',
-        statut: 'essai',
-        date_creation: now.toISOString(),
-        essai_fin: essaiFin.toISOString(),
-        licence_fin: null,
-        nb_eleves: 0, nb_utilisateurs: 1,
-        plan: 'essai',
-        notes_internes: document.getElementById('ne-notes')?.value || ''
-      };
-      // 1. Créer la fiche école (avec code unique pour la connexion multi-écoles)
-      await DB.insert('ecoles', fiche);
-      // 1bis. Enregistrement immédiat dans le registre local → code connectable
-      //       aussitôt, sans rafraîchissement réseau.
-      if (typeof DB.registerEcole === 'function') await DB.registerEcole(fiche);
-      // 2. Créer le compte directeur dans la table utilisateurs (avec ecole_code)
-      try {
-        await DB.insert('utilisateurs', {
-          id: 'user-' + Date.now(),
-          prenom: dirNom.split(' ')[0] || dirNom,
-          nom: dirNom.split(' ').slice(1).join(' ') || '',
-          email: dirEmail,
-          mot_de_passe: dirPwd,
-          role: 'admin',
-          actif: true,
-          ecole_code: code,      // ← Tag multi-tenancy
-          ecole_id: ecoleId,
-          ecole_nom: nom
-        });
-      } catch (e) { console.warn('Compte directeur non créé (table utilisateurs inaccessible):', e); }
-      // 3. Configuration minimale de l'école (assistant de démarrage ensuite)
-      try {
-        await DB.insert('ecole_config', {
-          id: 'cfg-' + ecoleId,
-          ecole_code: code,
-          nom, adresse: ville,
-          telephone: fiche.telephone,
-          devise: fiche.devise,
-          matricule_prefix: code,
-          code_ecole: code,
-          configured: false
-        });
-      } catch (e) { console.warn('Config école non créée :', e); }
+        notes_internes: document.getElementById('ne-notes')?.value || '',
+        essai_jours: ESSAI_DUREE_JOURS,
+      });
 
+      const fiche = res.ecole;
+      // Miroir local (affichage instantané + reconnaissance du code hors-ligne)
+      try {
+        await DB._idbPut('ecoles', fiche, false);
+        if (typeof DB.registerEcole === 'function') await DB.registerEcole(fiche);
+      } catch (e) { console.warn('Miroir local école :', e.message); }
 
       SAModal.close();
-      SATk.success(`✓ École "${nom}" créée ! Code: <strong>${code}</strong> — Essai jusqu'au ${SAH.date(essaiFin)}.`);
+      SATk.success(`✓ École "${nom}" créée dans la base partagée ! Code: <strong>${code}</strong> — Essai jusqu'au ${SAH.date(essaiFin)}. Le directeur peut se connecter immédiatement.`);
       SAPages.ecoles();
-    } catch(err) { SATk.error('Erreur création : ' + err.message); SAPages.ecoles(); }
+    } catch(err) { SAModal.close(); SATk.error('Erreur création : ' + err.message); SAPages.ecoles(); }
   },
+
 
   async _viewEcole(id) {
     const [ecole, licences, abons] = await Promise.all([
