@@ -5659,10 +5659,39 @@ const Pages = {
                   <input type="radio" name="ech-type" id="ech-trimestriel" value="trimestriel" ${cfg?.type_echeancier==='trimestriel'?'checked':''} onchange="Pages._onEcheancierChange()" style="accent-color:var(--primary)">
                   <div><strong><i class="fa-solid fa-calendar-week"></i> Par Trimestre</strong><div style="font-size:.78rem;color:var(--gray-600)">Inscription + 3 trimestres</div></div>
                 </label>
+                <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;padding:.6rem 1rem;border-radius:8px;border:2px solid ${cfg?.type_echeancier==='libre'?'var(--primary)':'var(--gray-300)'};flex:1">
+                  <input type="radio" name="ech-type" id="ech-libre" value="libre" ${cfg?.type_echeancier==='libre'?'checked':''} onchange="Pages._onEcheancierChange()" style="accent-color:var(--primary)">
+                  <div><strong><i class="fa-solid fa-sliders"></i> Nombre libre</strong><div style="font-size:.78rem;color:var(--gray-600)">Choisissez vous-même 2, 4, 6, 7… tranches</div></div>
+                </label>
               </div>
             </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.75rem;margin-top:.75rem">
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Année scolaire en cours</label>
+                <input class="form-control" id="ech-annee" value="${cfg?.annee_scolaire||''}" placeholder="Ex : 2026-2027">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Date de rentrée</label>
+                <input type="date" class="form-control" id="ech-rentree" value="${cfg?.date_rentree||''}">
+                <div style="font-size:.72rem;color:var(--gray-500)">Aucun retard n'est compté avant cette date.</div>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Frais d'inscription (nouveaux élèves)</label>
+                <input type="number" min="0" class="form-control" id="ech-frais-inscr" value="${cfg?.frais_inscription ?? ''}" placeholder="Auto (15%)">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Frais de réinscription (anciens élèves)</label>
+                <input type="number" min="0" class="form-control" id="ech-frais-reinscr" value="${cfg?.frais_reinscription ?? ''}" placeholder="Auto (15%)">
+              </div>
+              <div class="form-group" style="margin:0" id="ech-nb-wrap" style="display:${cfg?.type_echeancier==='libre'?'block':'none'}">
+                <label class="form-label">Nombre de tranches</label>
+                <input type="number" min="1" max="12" class="form-control" id="ech-nb-tranches" value="${cfg?.nb_tranches || 3}" onchange="Pages._onEcheancierChange()">
+              </div>
+            </div>
+
             <div id="ech-montants-section" style="margin-top:.75rem">
-              <label class="form-label">Montants par tranche (laisser vide = calculé automatiquement)</label>
+              <label class="form-label">Montants et dates limites par tranche (montant vide = calculé automatiquement)</label>
               <div id="ech-montants-form" style="margin-top:.5rem"></div>
             </div>
             <button class="btn btn-primary btn-sm" style="margin-top:.75rem" id="ech-save-btn" onclick="Pages._saveEcheancier()"><i class="fa-solid fa-save"></i> Enregistrer l'échéancier</button>
@@ -5706,15 +5735,19 @@ const Pages = {
           </div>
         </div>`);
       // Initialiser le formulaire de montants
+      Pages._cfgEcheances = cfg?.montants_echeances || [];
       Pages._buildEcheancierMontants(cfg);
     } catch (err) { setContent(`<div class="empty-state"><h3>Erreur</h3><p>${err.message}</p></div>`); }
   },
 
   _buildEcheancierMontants(cfg) {
     const typeEch = document.querySelector('input[name="ech-type"]:checked')?.value || cfg?.type_echeancier || 'mensuel';
-    const montantsEch = cfg?.montants_echeances || [];
+    const montantsEch = cfg?.montants_echeances || Pages._cfgEcheances || [];
     const container = document.getElementById('ech-montants-form');
     if (!container) return;
+
+    const nbWrap = document.getElementById('ech-nb-wrap');
+    if (nbWrap) nbWrap.style.display = typeEch === 'libre' ? 'block' : 'none';
 
     let tranches;
     if (typeEch === 'trimestriel') {
@@ -5724,6 +5757,10 @@ const Pages = {
         {id:'trim2', label:'2ème Trimestre'},
         {id:'trim3', label:'3ème Trimestre'}
       ];
+    } else if (typeEch === 'libre') {
+      const nb = Math.max(1, Math.min(12, parseInt(document.getElementById('ech-nb-tranches')?.value, 10) || cfg?.nb_tranches || 3));
+      tranches = [{id:'inscription', label:'Inscription'}];
+      for (let i = 1; i <= nb; i++) tranches.push({ id:`tr${i}`, label:`Tranche ${i}` });
     } else {
       tranches = [
         {id:'inscription', label:'Inscription'},
@@ -5733,12 +5770,13 @@ const Pages = {
       ];
     }
 
-    container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.5rem">
+    container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:.6rem">
       ${tranches.map(t => {
         const existing = montantsEch.find(m => m.id === t.id);
-        return `<div style="display:flex;flex-direction:column;gap:.2rem">
-          <label style="font-size:.8rem;color:var(--gray-700)">${t.label}</label>
-          <input type="number" class="form-control" data-tranche="${t.id}" data-label="${t.label}" min="0" placeholder="Auto" value="${existing?.montant ?? ''}">
+        return `<div style="display:flex;flex-direction:column;gap:.2rem;padding:.45rem;border:1px solid var(--gray-200);border-radius:8px">
+          <label style="font-size:.8rem;font-weight:600;color:var(--gray-700)">${t.label}</label>
+          <input type="number" class="form-control" data-tranche="${t.id}" data-label="${t.label}" min="0" placeholder="Montant (auto)" value="${existing?.montant ?? ''}">
+          <input type="date" class="form-control" data-echeance="${t.id}" title="Date limite de paiement" value="${existing?.date_echeance || ''}">
         </div>`;
       }).join('')}
     </div>`;
@@ -5752,15 +5790,36 @@ const Pages = {
     const typeEch = document.querySelector('input[name="ech-type"]:checked')?.value || 'mensuel';
     const inputs = document.querySelectorAll('#ech-montants-form input[data-tranche]');
     const montantsEcheances = [];
-    inputs.forEach(inp => {
-      if (inp.value !== '') {
-        montantsEcheances.push({ id: inp.dataset.tranche, label: inp.dataset.label, montant: parseFloat(inp.value) || 0 });
-      }
+    inputs.forEach((inp, i) => {
+      const id = inp.dataset.tranche;
+      const dateInp = document.querySelector(`#ech-montants-form input[data-echeance="${id}"]`);
+      const montant = inp.value !== '' ? (parseFloat(inp.value) || 0) : null;
+      const dateEch = dateInp?.value || '';
+      if (montant === null && !dateEch) return; // rien de saisi → calcul auto
+      montantsEcheances.push({
+        id, label: inp.dataset.label, mois_index: i,
+        montant: montant === null ? 0 : montant,
+        date_echeance: dateEch || null
+      });
     });
+    const nbTranches = parseInt(document.getElementById('ech-nb-tranches')?.value, 10) || 0;
+    const fraisI  = document.getElementById('ech-frais-inscr')?.value;
+    const fraisR  = document.getElementById('ech-frais-reinscr')?.value;
+    const annee   = document.getElementById('ech-annee')?.value?.trim() || '';
+    const rentree = document.getElementById('ech-rentree')?.value || '';
     const btn = document.getElementById('ech-save-btn');
     if (!btn || !Debounce.btn(btn, 5000)) return; // anti-double-clic
     try {
-      await DB.setEcoleConfig({ type_echeancier: typeEch, montants_echeances: montantsEcheances });
+      Pages._cfgEcheances = montantsEcheances;
+      await DB.setEcoleConfig({
+        type_echeancier: typeEch,
+        montants_echeances: montantsEcheances,
+        nb_tranches: typeEch === 'libre' ? Math.max(1, Math.min(12, nbTranches || 3)) : 0,
+        frais_inscription: fraisI === '' ? 0 : (parseFloat(fraisI) || 0),
+        frais_reinscription: fraisR === '' ? 0 : (parseFloat(fraisR) || 0),
+        ...(annee ? { annee_scolaire: annee } : {}),
+        ...(rentree ? { date_rentree: rentree } : {})
+      });
       Toast.success('Échéancier enregistré !');
     } catch(err) { Toast.error('Erreur : ' + err.message); }
     finally { Debounce.release(btn, '<i class="fa-solid fa-save"></i> Enregistrer l\'échéancier'); }
