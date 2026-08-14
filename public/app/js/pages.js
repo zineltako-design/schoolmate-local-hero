@@ -2660,7 +2660,14 @@ const Pages = {
 
       let allHtml = '';
 
-      sorted.forEach((eleve) => {
+      // Traitement par lots : la page reste réactive et l'utilisateur voit la
+      // progression au lieu d'un écran figé.
+      let _idx = 0;
+      for (const eleve of sorted) {
+        if (++_idx % 15 === 0) {
+          if (btn) btn.innerHTML = `<div class="loading-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block"></div> ${_idx}/${sorted.length}…`;
+          await new Promise(r => setTimeout(r, 0));
+        }
         let noteRows = '', sp = 0, sc = 0;
         matieres.forEach(mat => {
           const valeur = getValeur(eleve.id, mat.id);
@@ -2725,7 +2732,7 @@ const Pages = {
           </div>
           <div style="text-align:right;font-size:7pt;color:#aaa;margin-top:.1cm">Imprimé le ${new Date().toLocaleDateString('fr-FR')}</div>
         </div>`;
-      });
+      }
 
       // R11 — PrintHelper (Blob URL iframe modal, plus de popup bloqué)
       const nbBulletins = sorted.length;
