@@ -897,12 +897,23 @@ const SAPages = {
     try {
       const keyRecord = await DB.insert('licences_keys', {
         cle, ecole_id: ecoleId, ecole_nom: ecole?.nom||'',
+        ecole_code: (ecole?.code || '').toUpperCase(),
         duree_jours: duree, plan, montant, devise,
         statut: 'non_utilisee',
         date_generation: new Date().toISOString(),
         date_activation: null, date_expiration: null,
         activee_par: SA_MASTER_EMAIL, notes
       });
+      // Écriture cloud immédiate + vérification : une clé qui n'existe pas
+      // dans la base partagée serait refusée à l'activation.
+      try {
+        await ZeanCloud.upsert('licences_keys', { ...keyRecord, cle, ecole_code: (ecole?.code||'').toUpperCase() });
+        const check = await ZeanCloud.client.from('licences_keys').select('cle').eq('cle', cle).maybeSingle();
+        if (!check.data) throw new Error('clé absente de la base partagée');
+      } catch (e) {
+        SATk.error('Clé non enregistrée dans la base partagée : ' + e.message);
+        return;
+      }
       // Enregistrer aussi l'abonnement
       if (montant > 0) {
         await DB.insert('abonnements', {
