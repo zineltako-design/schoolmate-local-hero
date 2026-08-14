@@ -41,11 +41,13 @@ export const Route = createFileRoute("/api/public/zean/licence")({
         const licence = keys?.[0];
         if (!licence) return bad("Clé inconnue. Vérifiez la saisie.", 404);
         if (licence.statut === "revoquee") return bad("Cette clé a été révoquée.");
-        if (licence.statut === "utilisee" || licence.statut === "active") {
+        if (licence.statut === "utilisee" || licence.statut === "active" || licence.date_activation) {
           const dejaPour = (licence.ecole_code || "").toUpperCase();
-          if (dejaPour && dejaPour !== ecoleCode) {
-            return bad("Cette clé est déjà utilisée par un autre établissement.");
-          }
+          return bad(
+            dejaPour && dejaPour !== ecoleCode
+              ? "Cette clé est déjà utilisée par un autre établissement."
+              : "Cette clé a déjà été activée.",
+          );
         }
         const reservee = (licence.ecole_code || "").toUpperCase();
         if (reservee && reservee !== ecoleCode) {
