@@ -5684,7 +5684,7 @@ const Pages = {
                 <label class="form-label">Frais de réinscription (anciens élèves)</label>
                 <input type="number" min="0" class="form-control" id="ech-frais-reinscr" value="${cfg?.frais_reinscription ?? ''}" placeholder="Auto (15%)">
               </div>
-              <div class="form-group" style="margin:0" id="ech-nb-wrap" style="display:${cfg?.type_echeancier==='libre'?'block':'none'}">
+              <div class="form-group" id="ech-nb-wrap" style="margin:0;display:${cfg?.type_echeancier==='libre'?'block':'none'}">
                 <label class="form-label">Nombre de tranches</label>
                 <input type="number" min="1" max="12" class="form-control" id="ech-nb-tranches" value="${cfg?.nb_tranches || 3}" onchange="Pages._onEcheancierChange()">
               </div>
