@@ -968,11 +968,21 @@ const LicenceManager = {
    */
   async check(ecoleId) {
     try {
-      if (!ecoleId) return { statut: 'inconnu', joursRestants: 999, isEssai: false, isLocked: false };
-
-      const resp = await fetch(`tables/ecoles/${ecoleId}`);
-      if (!resp.ok) return { statut: 'inconnu', joursRestants: 999, isEssai: false, isLocked: false };
-      const ecole = await resp.json();
+      // La fiche école vient désormais de la base partagée (cloud), plus de
+      // l'ancienne API `tables/` qui n'existe plus.
+      const code = App.currentUser?.ecole_code || '';
+      let ecole = null;
+      try {
+        if (window.ZeanCloud && code) ecole = await ZeanCloud.findEcoleByCode(code);
+      } catch {}
+      if (!ecole) {
+        try {
+          const raw = sessionStorage.getItem('zean_school_data');
+          ecole = raw ? JSON.parse(raw) : null;
+        } catch {}
+      }
+      if (!ecole) return { statut: 'inconnu', joursRestants: 999, isEssai: false, isLocked: false };
+      try { sessionStorage.setItem('zean_school_data', JSON.stringify(ecole)); } catch {}
 
       const now = Date.now();
 
