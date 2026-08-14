@@ -41,11 +41,13 @@ export const Route = createFileRoute("/api/public/zean/licence")({
         const licence = keys?.[0];
         if (!licence) return bad("Clé inconnue. Vérifiez la saisie.", 404);
         if (licence.statut === "revoquee") return bad("Cette clé a été révoquée.");
-        if (licence.statut === "utilisee" || licence.statut === "active") {
+        if (licence.statut === "utilisee" || licence.statut === "active" || licence.date_activation) {
           const dejaPour = (licence.ecole_code || "").toUpperCase();
-          if (dejaPour && dejaPour !== ecoleCode) {
-            return bad("Cette clé est déjà utilisée par un autre établissement.");
-          }
+          return bad(
+            dejaPour && dejaPour !== ecoleCode
+              ? "Cette clé est déjà utilisée par un autre établissement."
+              : "Cette clé a déjà été activée.",
+          );
         }
         const reservee = (licence.ecole_code || "").toUpperCase();
         if (reservee && reservee !== ecoleCode) {
@@ -62,7 +64,11 @@ export const Route = createFileRoute("/api/public/zean/licence")({
 
         const now = Date.now();
         const jours = Number(licence.duree_jours) > 0 ? Number(licence.duree_jours) : 365;
-        const expiration = new Date(now + jours * 86400000).toISOString();
+        // Renouvellement : si la licence en cours n'est pas encore expirée, la
+        // nouvelle durée s'ajoute au reliquat — la durée prévue est respectée.
+        const finActuelle = ecole.licence_fin ? new Date(ecole.licence_fin).getTime() : 0;
+        const depart = finActuelle > now ? finActuelle : now;
+        const expiration = new Date(depart + jours * 86400000).toISOString();
 
         const upKey = await supabaseAdmin
           .from("licences_keys")

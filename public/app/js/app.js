@@ -968,11 +968,21 @@ const LicenceManager = {
    */
   async check(ecoleId) {
     try {
-      if (!ecoleId) return { statut: 'inconnu', joursRestants: 999, isEssai: false, isLocked: false };
-
-      const resp = await fetch(`tables/ecoles/${ecoleId}`);
-      if (!resp.ok) return { statut: 'inconnu', joursRestants: 999, isEssai: false, isLocked: false };
-      const ecole = await resp.json();
+      // La fiche école vient désormais de la base partagée (cloud), plus de
+      // l'ancienne API `tables/` qui n'existe plus.
+      const code = App.currentUser?.ecole_code || '';
+      let ecole = null;
+      try {
+        if (window.ZeanCloud && code) ecole = await ZeanCloud.findEcoleByCode(code);
+      } catch {}
+      if (!ecole) {
+        try {
+          const raw = sessionStorage.getItem('zean_school_data');
+          ecole = raw ? JSON.parse(raw) : null;
+        } catch {}
+      }
+      if (!ecole) return { statut: 'inconnu', joursRestants: 999, isEssai: false, isLocked: false };
+      try { sessionStorage.setItem('zean_school_data', JSON.stringify(ecole)); } catch {}
 
       const now = Date.now();
 
@@ -1140,73 +1150,34 @@ const LicenceManager = {
    * @param {string} ecoleId - L'ID de l'école
    */
   async activateKey(cle, ecoleId) {
-    const errEl  = document.getElementById('activation-error');
-    const btnEl  = document.getElementById('activation-submit-btn');
+    const errEl = document.getElementById('activation-error');
+    const btnEl = document.getElementById('activation-submit-btn');
     if (errEl) errEl.textContent = '';
 
-    // Validation format
-    if (!cle || !/^ZEAN-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(cle)) {
-      if (errEl) errEl.textContent = 'Format de clé invalide. Exemple : ZEAN-AB12-CD34-EF56';
+    const key = (cle || '').trim().toUpperCase();
+    if (!key) {
+      if (errEl) errEl.textContent = 'Veuillez saisir votre clé d\'activation.';
       return;
     }
 
     if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '<div class="loading-spinner" style="width:16px;height:16px;border-width:2px;display:inline-block"></div> Vérification…'; }
 
     try {
-      // 1. Chercher la clé dans la table licences_keys
-      const resp = await fetch(`tables/licences_keys?search=${encodeURIComponent(cle)}&limit=10`);
-      if (!resp.ok) throw new Error('Erreur serveur lors de la recherche de clé.');
-      const result = await resp.json();
-      const keys = result.data || [];
+      // Vérification et activation côté serveur (base partagée) : la clé, sa
+      // durée et la date d'expiration sont calculées et enregistrées là-bas.
+      const code = App.currentUser?.ecole_code || '';
+      const res  = await ZeanAPI.activerLicence(key, code);
+      const finDt = res.licence_fin;
 
-      const keyRecord = keys.find(k => k.cle === cle);
+      // Rafraîchir la fiche école en session
+      try {
+        const frais = await ZeanCloud.findEcoleByCode(code);
+        if (frais) {
+          sessionStorage.setItem('zean_school_data', JSON.stringify(frais));
+          if (typeof DB.registerEcole === 'function') await DB.registerEcole(frais);
+        }
+      } catch {}
 
-      if (!keyRecord) {
-        if (errEl) errEl.textContent = 'Clé introuvable. Vérifiez la saisie ou contactez le support.';
-        return;
-      }
-      if (keyRecord.statut === 'active' || keyRecord.statut === 'expiree') {
-        if (errEl) errEl.textContent = 'Cette clé a déjà été utilisée. Contactez editrice@zean.app.';
-        return;
-      }
-      if (keyRecord.statut === 'revoquee') {
-        if (errEl) errEl.textContent = 'Cette clé a été révoquée. Contactez editrice@zean.app.';
-        return;
-      }
-      if (keyRecord.ecole_id && keyRecord.ecole_id !== ecoleId) {
-        if (errEl) errEl.textContent = 'Cette clé n\'est pas associée à votre école.';
-        return;
-      }
-
-      // 2. Calculer la date d'expiration
-      const duree  = parseInt(keyRecord.duree_jours) || 30;
-      const finDt  = new Date(Date.now() + duree * 86400000).toISOString();
-
-      // 3. Mettre à jour la table licences_keys
-      await fetch(`tables/licences_keys/${keyRecord.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          statut          : 'active',
-          date_activation : new Date().toISOString(),
-          date_expiration : finDt,
-          activee_par     : App.currentUser?.email || ''
-        })
-      });
-
-      // 4. Mettre à jour ecoles.licence_fin si l'école est connue
-      if (ecoleId) {
-        await fetch(`tables/ecoles/${ecoleId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            licence_fin : finDt,
-            statut      : 'actif'
-          })
-        });
-      }
-
-      // 5. Succès — déverrouiller et fermer
       Modal.close();
       this.hideLockScreen();
       this.hideBanner();
@@ -1214,17 +1185,16 @@ const LicenceManager = {
       const dateStr = new Date(finDt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
       Toast.success(`✅ Licence activée ! Accès garanti jusqu'au ${dateStr}.`);
 
-      // Recharger la page principale si on venait de l'écran de blocage
       const app = document.getElementById('app');
       if (app && !app.classList.contains('active')) {
         app.classList.add('active');
         await App.updateSchoolName();
         App.navigateTo('dashboard');
       }
-
     } catch (err) {
       console.error('LicenceManager.activateKey error:', err);
-      if (errEl) errEl.textContent = 'Erreur lors de l\'activation. Vérifiez votre connexion.';
+      if (errEl) errEl.textContent = err.message || 'Erreur lors de l\'activation. Vérifiez votre connexion.';
+      if (typeof Toast !== 'undefined') Toast.error(err.message || 'Activation impossible');
     } finally {
       if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = '<i class="fa-solid fa-unlock"></i> Activer la licence'; }
     }
@@ -1256,10 +1226,8 @@ const LicenceManager = {
    */
   async loadAnnonces(ecoleId) {
     try {
-      const resp = await fetch('tables/annonces_plateforme?limit=20');
-      if (!resp.ok) return;
-      const result = await resp.json();
-      const all = result.data || [];
+      // Annonces lues dans la base partagée (l'ancienne API `tables/` n'existe plus)
+      const all = (window.ZeanCloud && await ZeanCloud.select('annonces_plateforme', '', 20)) || [];
       const now = Date.now();
 
       // Filtrer : active + période valide + ciblée sur cette école ou 'toutes'

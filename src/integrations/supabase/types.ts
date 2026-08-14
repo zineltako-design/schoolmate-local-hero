@@ -468,13 +468,17 @@ export type Database = {
           code_ecole: string | null
           configured: boolean | null
           created_at: number | null
+          date_rentree: string | null
           devise: string | null
           ecole_code: string
           email: string | null
+          frais_inscription: number | null
+          frais_reinscription: number | null
           id: string
           logo_url: string | null
           matricule_prefix: string | null
           montants_echeances: Json | null
+          nb_tranches: number | null
           nom: string | null
           telephone: string | null
           type_echeancier: string | null
@@ -487,13 +491,17 @@ export type Database = {
           code_ecole?: string | null
           configured?: boolean | null
           created_at?: number | null
+          date_rentree?: string | null
           devise?: string | null
           ecole_code: string
           email?: string | null
+          frais_inscription?: number | null
+          frais_reinscription?: number | null
           id: string
           logo_url?: string | null
           matricule_prefix?: string | null
           montants_echeances?: Json | null
+          nb_tranches?: number | null
           nom?: string | null
           telephone?: string | null
           type_echeancier?: string | null
@@ -506,13 +514,17 @@ export type Database = {
           code_ecole?: string | null
           configured?: boolean | null
           created_at?: number | null
+          date_rentree?: string | null
           devise?: string | null
           ecole_code?: string
           email?: string | null
+          frais_inscription?: number | null
+          frais_reinscription?: number | null
           id?: string
           logo_url?: string | null
           matricule_prefix?: string | null
           montants_echeances?: Json | null
+          nb_tranches?: number | null
           nom?: string | null
           telephone?: string | null
           type_echeancier?: string | null

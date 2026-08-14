@@ -31,7 +31,8 @@ const ZeanCloud = {
   COLUMNS: {
     ecole_config: { id:'t', ecole_code:'t', nom:'t', adresse:'t', telephone:'t', email:'t', devise:'t',
       matricule_prefix:'t', code_ecole:'t', ville:'t', logo_url:'t', configured:'b', type_echeancier:'t',
-      montants_echeances:'j', annee_scolaire:'t', created_at:'ms', updated_at:'ms' },
+      montants_echeances:'j', annee_scolaire:'t', frais_inscription:'n', frais_reinscription:'n',
+      date_rentree:'t', nb_tranches:'n', created_at:'ms', updated_at:'ms' },
     classes: { id:'t', ecole_code:'t', nom:'t', niveau:'t', created_at:'ms', updated_at:'ms' },
     eleves: { id:'t', ecole_code:'t', matricule:'t', prenom:'t', nom:'t', date_naissance:'t', sexe:'t',
       classe_id:'t', nom_parent:'t', contact_parent:'t', type_scolarite:'t', created_at:'ms', updated_at:'ms' },
@@ -202,8 +203,10 @@ const ZeanCloud = {
     out.id = String(row.id);
     if (cols.ecole_code) {
       const code = (row.ecole_code || row.school_code || ecoleCode || '').trim().toUpperCase();
-      if (!code) return null; // jamais d'écriture sans école (isolation)
-      out.ecole_code = code;
+      // Tables plateforme (écoles, licences, abonnements) : le code école est
+      // facultatif — une clé de licence peut exister avant d'être attribuée.
+      if (!code && !this.GLOBAL_TABLES.includes(table)) return null; // isolation stricte
+      out.ecole_code = code && code !== '*' ? code : null;
     }
     out.updated_at = Date.now();
     if (!out.created_at) out.created_at = Date.now();

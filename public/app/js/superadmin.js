@@ -317,23 +317,26 @@ const SAPages = {
     try {
       // SA n'a pas de filtre ecole_code — récupère tout depuis l'API cloud
       // Stratégie : API directe pour les compteurs (total réel), DB.getAll pour les détails
-      const fetchTotal = async (table) => {
-        try {
-          const r = await fetch(`tables/${table}?page=1&limit=1`);
-          if (!r.ok) return 0;
-          const j = await r.json();
-          return parseInt(j.total || j.data?.length || 0);
-        } catch { return 0; }
-      };
+      // Compteurs réels recalculés côté serveur (base partagée) et écrits
+      // dans la table `ecoles` → le tableau de bord est toujours à jour.
+      let stats = null;
+      try { stats = await ZeanAPI.refreshStats(); } catch (e) { console.warn('[SA] stats', e.message); }
 
-      const [ecoles, licences, abonnements, annonces, tousEleves, tousUsers] = await Promise.all([
+      const [ecoles, licences, abonnements, annonces] = await Promise.all([
         DB.getAll('ecoles', 200),
         DB.getAll('licences_keys', 500),
         DB.getAll('abonnements', 500),
-        DB.getAll('annonces_plateforme', 100),
-        fetchTotal('eleves'),      // Count réel depuis API (pas IDB filtré)
-        fetchTotal('utilisateurs') // Count réel depuis API
+        DB.getAll('annonces_plateforme', 100)
       ]);
+      // Injecter les compteurs frais dans les fiches affichées
+      if (stats?.detail) {
+        ecoles.forEach(e => {
+          const d = stats.detail[(e.code||'').trim().toUpperCase()];
+          if (d) { e.nb_eleves = d.nb_eleves; e.nb_utilisateurs = d.nb_utilisateurs; }
+        });
+      }
+      const tousEleves = stats?.total_eleves || 0;
+      const tousUsers  = stats?.total_utilisateurs || 0;
       const now = new Date();
 
       const nbEcoles  = ecoles.length;
@@ -897,12 +900,23 @@ const SAPages = {
     try {
       const keyRecord = await DB.insert('licences_keys', {
         cle, ecole_id: ecoleId, ecole_nom: ecole?.nom||'',
+        ecole_code: (ecole?.code || '').toUpperCase(),
         duree_jours: duree, plan, montant, devise,
         statut: 'non_utilisee',
         date_generation: new Date().toISOString(),
         date_activation: null, date_expiration: null,
         activee_par: SA_MASTER_EMAIL, notes
       });
+      // Écriture cloud immédiate + vérification : une clé qui n'existe pas
+      // dans la base partagée serait refusée à l'activation.
+      try {
+        await ZeanCloud.upsert('licences_keys', { ...keyRecord, cle, ecole_code: (ecole?.code||'').toUpperCase() });
+        const check = await ZeanCloud.client.from('licences_keys').select('cle').eq('cle', cle).maybeSingle();
+        if (!check.data) throw new Error('clé absente de la base partagée');
+      } catch (e) {
+        SATk.error('Clé non enregistrée dans la base partagée : ' + e.message);
+        return;
+      }
       // Enregistrer aussi l'abonnement
       if (montant > 0) {
         await DB.insert('abonnements', {

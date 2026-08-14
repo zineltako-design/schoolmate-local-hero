@@ -30,15 +30,42 @@
     { id: 'trim3', label: 'Trimestre 3', mois: 2 }
   ];
 
-  // Année scolaire : démarre en septembre
-  function anneeScolaire() {
+  // Année scolaire : déduite de la configuration de l'école
+  // (ex. « 2026-2027 » → 2026), sinon de la date de rentrée, sinon septembre.
+  function anneeScolaire(cfg) {
+    const lab = String(cfg?.annee_scolaire || '');
+    const m = lab.match(/(20\d{2})/);
+    if (m) return parseInt(m[1], 10);
+    if (cfg?.date_rentree) {
+      const d = new Date(cfg.date_rentree);
+      if (!isNaN(d)) return d.getMonth() >= 8 ? d.getFullYear() : d.getFullYear() - 1;
+    }
     const now = new Date();
     return now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
   }
-  function dateEcheance(moisIndex) {
-    const y = anneeScolaire();
+  /** Date de rentrée officielle (début de l'année scolaire configurée). */
+  function dateRentree(cfg) {
+    if (cfg?.date_rentree) {
+      const d = new Date(cfg.date_rentree);
+      if (!isNaN(d)) return d;
+    }
+    return new Date(anneeScolaire(cfg), 8, 15); // 15 septembre par défaut
+  }
+  function dateEcheance(moisIndex, cfg) {
+    const y = anneeScolaire(cfg);
     const annee = moisIndex >= 8 ? y : y + 1;
     return new Date(annee, moisIndex, 5).toISOString().split('T')[0];
+  }
+  /** Découpe l'année scolaire en N tranches réparties d'octobre à juin. */
+  function tranchesReparties(n) {
+    const total = MOIS_SCO.length; // 9 mois utiles
+    const nb = Math.max(1, Math.min(12, parseInt(n, 10) || 3));
+    const out = [];
+    for (let i = 0; i < nb; i++) {
+      const idx = Math.min(total - 1, Math.round((i * total) / nb));
+      out.push({ id: `tr${i + 1}`, label: `Tranche ${i + 1}`, mois: MOIS_SCO[idx].mois });
+    }
+    return out;
   }
   const num = (v) => parseFloat(v || 0) || 0;
 
@@ -80,37 +107,63 @@
       const tarif = cls ? configsSco.find(c => c.niveau === cls.niveau) : null;
       const totalAnnuel = num(tarif?.montant_annuel);
 
-      // 1) Échéancier explicitement configuré
+      // Réinscription : élève déjà présent l'année précédente
+      const estReinscription = !!eleve && (
+        eleve.reinscription === true ||
+        eleve.type_scolarite === 'reinscription' ||
+        (eleve.annee_arrivee && String(eleve.annee_arrivee) !== String(cfg?.annee_scolaire || ''))
+      );
+
+      // 1) Échéancier explicitement configuré par l'école (nombre libre de
+      //    tranches, chacune avec son montant et sa date limite).
       const custom = Array.isArray(cfg?.montants_echeances) ? cfg.montants_echeances : [];
       if (custom.length) {
+        const aInscription = custom.some(x => /inscription/i.test(x.label || ''));
         return custom.map((t, i) => {
           const label = t.label || `Tranche ${i + 1}`;
           const isInscr = /inscription/i.test(label);
-          const ref = isInscr ? null : MOIS_SCO[Math.max(0, (t.mois_index ?? i) - (custom.some(x => /inscription/i.test(x.label || '')) ? 1 : 0))];
+          const ref = isInscr ? null : MOIS_SCO[Math.max(0, Math.min(MOIS_SCO.length - 1,
+            (t.mois_index ?? i) - (aInscription ? 1 : 0)))];
+          let montant = num(t.montant);
+          if (isInscr) {
+            const fraisI = num(estReinscription ? cfg?.frais_reinscription : cfg?.frais_inscription);
+            if (fraisI > 0) montant = fraisI;
+          }
           return {
-            id: isInscr ? 'inscription' : (ref?.id || `tr${i}`),
-            label,
-            montant: num(t.montant),
-            date_echeance: isInscr ? dateEcheance(8) : dateEcheance(ref ? ref.mois : 9)
+            id: isInscr ? 'inscription' : (t.id || ref?.id || `tr${i}`),
+            label: isInscr && estReinscription ? 'Réinscription' : label,
+            montant,
+            // Date limite saisie par l'école si présente
+            date_echeance: t.date_echeance || (isInscr ? dateEcheance(8, cfg) : dateEcheance(ref ? ref.mois : 9, cfg))
           };
         });
       }
 
-      // 2) Dérivation automatique depuis le tarif annuel
+      // 2) Dérivation automatique : frais d'inscription/réinscription paramétrés
+      //    + nombre de tranches librement configurable (nb_tranches).
       if (totalAnnuel <= 0) return [];
-      const trimestriel = (cfg?.type_echeancier || 'mensuel') === 'trimestriel';
-      const inscription = Math.round(totalAnnuel * 0.15);
-      const reste = totalAnnuel - inscription;
-      const base = trimestriel ? TRIMESTRES : MOIS_SCO;
+      const fraisConfig = num(estReinscription ? cfg?.frais_reinscription : cfg?.frais_inscription);
+      const inscription = fraisConfig > 0 ? fraisConfig : Math.round(totalAnnuel * 0.15);
+      const reste = Math.max(0, totalAnnuel - inscription);
+
+      let base;
+      if (num(cfg?.nb_tranches) > 0) base = tranchesReparties(cfg.nb_tranches);
+      else base = (cfg?.type_echeancier || 'mensuel') === 'trimestriel' ? TRIMESTRES : MOIS_SCO;
+
       const part = Math.round(reste / base.length);
 
       return [
-        { id: 'inscription', label: 'Inscription', montant: inscription, date_echeance: dateEcheance(8) },
+        {
+          id: 'inscription',
+          label: estReinscription ? 'Réinscription' : 'Inscription',
+          montant: inscription,
+          date_echeance: dateEcheance(8, cfg)
+        },
         ...base.map((t, i) => ({
           id: t.id,
           label: t.label,
           montant: i === base.length - 1 ? reste - part * (base.length - 1) : part,
-          date_echeance: dateEcheance(t.mois)
+          date_echeance: dateEcheance(t.mois, cfg)
         }))
       ];
     },
@@ -145,9 +198,13 @@
       const eleve = eleves.find(e => e.id === eleveId);
       if (!eleve || this.isExonere(eleve)) return 0;
 
+      // Aucun retard possible si l'année scolaire n'a pas encore débuté.
+      const cfg = await this.getEcoleConfig();
+      const today = new Date();
+      if (today < dateRentree(cfg)) return 0;
+
       const echeances = await this.getEcheances(eleve.classe_id, eleveId);
       const pays = paiements.filter(p => p.eleve_id === eleveId && !p.annule);
-      const today = new Date();
       let retard = 0;
 
       for (const ech of echeances) {
