@@ -1226,10 +1226,8 @@ const LicenceManager = {
    */
   async loadAnnonces(ecoleId) {
     try {
-      const resp = await fetch('tables/annonces_plateforme?limit=20');
-      if (!resp.ok) return;
-      const result = await resp.json();
-      const all = result.data || [];
+      // Annonces lues dans la base partagée (l'ancienne API `tables/` n'existe plus)
+      const all = (window.ZeanCloud && await ZeanCloud.select('annonces_plateforme', '', 20)) || [];
       const now = Date.now();
 
       // Filtrer : active + période valide + ciblée sur cette école ou 'toutes'
