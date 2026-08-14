@@ -49,6 +49,8 @@ const ZeanAPI = {
   createEcole(payload)      { return this.post('/ecoles', payload); },
   createUtilisateur(payload){ return this.post('/utilisateurs', payload); },
   activerLicence(cle, ecoleCode) { return this.post('/licence', { cle, ecole_code: ecoleCode }); },
+  /** Recalcule les compteurs réels par école (SuperAdmin). */
+  refreshStats()            { return this.post('/stats', {}); },
 };
 
 window.ZeanAPI = ZeanAPI;
