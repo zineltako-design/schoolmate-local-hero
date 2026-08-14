@@ -2589,22 +2589,31 @@ const Pages = {
       const periodeLabel = type==='seq'?`Séquence ${num}`:type==='tri'?`Trimestre ${num}`:'Annuel';
       const annee = `${new Date().getFullYear()-1}/${new Date().getFullYear()}`;
 
+      // ── Index des notes (élève|matière|séquence) ────────────────────
+      // Sans cet index, chaque case du bulletin parcourait toute la table des
+      // notes → génération en boucle sur les grandes classes. Ici : 1 passage.
+      const noteIdx = new Map();
+      for (const n of allNotes) {
+        noteIdx.set(`${n.eleve_id}|${n.matiere_id}|${n.sequence}`, n);
+      }
+      const noteVal = (eleveId, matId, seq) => {
+        const v = noteIdx.get(`${eleveId}|${matId}|${seq}`)?.valeur;
+        return (v !== null && v !== undefined && v !== '') ? parseFloat(v) : null;
+      };
+
       // Helper : calcul valeur selon type
       const getValeur = (eleveId, matId) => {
         if (type === 'seq') {
-          const n = allNotes.find(x => x.eleve_id===eleveId && x.matiere_id===matId && x.sequence===num);
-          return (n?.valeur !== null && n?.valeur !== undefined && n?.valeur !== '') ? parseFloat(n.valeur) : null;
+          return noteVal(eleveId, matId, num);
         } else if (type === 'tri') {
           const s1=(num-1)*2+1, s2=s1+1;
-          const n1 = allNotes.find(x => x.eleve_id===eleveId && x.matiere_id===matId && x.sequence===s1);
-          const n2 = allNotes.find(x => x.eleve_id===eleveId && x.matiere_id===matId && x.sequence===s2);
-          const vs = [n1?.valeur, n2?.valeur].filter(v => v !== null && v !== undefined && v !== '');
-          return vs.length ? parseFloat((vs.reduce((a, b) => a + parseFloat(b), 0) / vs.length).toFixed(2)) : null;
+          const vs = [noteVal(eleveId, matId, s1), noteVal(eleveId, matId, s2)].filter(v => v !== null);
+          return vs.length ? parseFloat((vs.reduce((a, b) => a + b, 0) / vs.length).toFixed(2)) : null;
         } else {
           const allV = [];
           for (let s=1; s<=6; s++) {
-            const n = allNotes.find(x => x.eleve_id===eleveId && x.matiere_id===matId && x.sequence===s);
-            if (n?.valeur !== null && n?.valeur !== undefined && n?.valeur !== '') allV.push(parseFloat(n.valeur));
+            const v = noteVal(eleveId, matId, s);
+            if (v !== null) allV.push(v);
           }
           return allV.length ? parseFloat((allV.reduce((a,b)=>a+b,0)/allV.length).toFixed(2)) : null;
         }
@@ -2618,17 +2627,12 @@ const Pages = {
       };
       const getSeqValues = (eleveId, matId) => {
         if (type === 'seq') return '';
+        const cell = (v) => `<td align="center" style="font-size:7pt">${v !== null ? v.toFixed(1) : '—'}</td>`;
         if (type === 'tri') {
           const s1=(num-1)*2+1, s2=s1+1;
-          const v1 = allNotes.find(x=>x.eleve_id===eleveId&&x.matiere_id===matId&&x.sequence===s1)?.valeur;
-          const v2 = allNotes.find(x=>x.eleve_id===eleveId&&x.matiere_id===matId&&x.sequence===s2)?.valeur;
-          return `<td align="center" style="font-size:7pt">${v1!==null&&v1!==undefined&&v1!==''?parseFloat(v1).toFixed(1):'—'}</td><td align="center" style="font-size:7pt">${v2!==null&&v2!==undefined&&v2!==''?parseFloat(v2).toFixed(1):'—'}</td>`;
+          return cell(noteVal(eleveId, matId, s1)) + cell(noteVal(eleveId, matId, s2));
         }
-        return [1,2,3,4,5,6].map(s => {
-          const n = allNotes.find(x=>x.eleve_id===eleveId&&x.matiere_id===matId&&x.sequence===s);
-          const v = n?.valeur;
-          return `<td align="center" style="font-size:7pt">${v!==null&&v!==undefined&&v!==''?parseFloat(v).toFixed(1):'—'}</td>`;
-        }).join('');
+        return [1,2,3,4,5,6].map(s => cell(noteVal(eleveId, matId, s))).join('');
       };
 
       // En-tête officiel 3 colonnes — T4.2 : base64 prioritaire sur URL
